@@ -74,7 +74,7 @@ interface TranscriptCacheFile {
   data: SerializedTranscriptData;
 }
 
-const TRANSCRIPT_CACHE_VERSION = 3;
+const TRANSCRIPT_CACHE_VERSION = 4;
 
 let createReadStreamImpl: typeof fs.createReadStream = fs.createReadStream;
 
