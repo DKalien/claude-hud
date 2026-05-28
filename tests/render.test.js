@@ -5,10 +5,11 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { render } from '../dist/render/index.js';
+import { mergeConfig } from '../dist/config.js';
 import { renderSessionLine } from '../dist/render/session-line.js';
 import { renderProjectLine, renderGitFilesLine } from '../dist/render/lines/project.js';
 import { renderPromptCacheLine } from '../dist/render/lines/prompt-cache.js';
-import { renderToolsLine } from '../dist/render/tools-line.js';
+import { renderToolsLine, shortenToolName } from '../dist/render/tools-line.js';
 import { renderAgentsLine } from '../dist/render/agents-line.js';
 import { renderTodosLine } from '../dist/render/todos-line.js';
 import { renderUsageLine } from '../dist/render/lines/usage.js';
@@ -898,6 +899,124 @@ test('renderToolsLine renders running and completed tools', () => {
   assert.ok(line?.includes('Read'));
   assert.ok(line?.includes('Edit'));
   assert.ok(line?.includes('.../authentication.ts'));
+});
+
+test('renderToolsLine keeps default tool cap and full names', () => {
+  const ctx = baseContext();
+  ctx.transcript.tools = [
+    { id: 'tool-1', name: 'mcp__plugin_context-mode_context-mode__ctx_batch_execute', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-2', name: 'ToolSearch', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-3', name: 'Read', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-4', name: 'Edit', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-5', name: 'Write', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+  ];
+
+  const line = stripAnsi(renderToolsLine(ctx) ?? '');
+  assert.ok(line.includes('mcp__plugin_context-mode_context-mode__ctx_batch_execute'));
+  assert.ok(!line.includes('Write ×1'));
+});
+
+test('shortenToolName shortens MCP names to the final segment', () => {
+  assert.equal(
+    shortenToolName('mcp__plugin_context-mode_context-mode__ctx_batch_execute', 20),
+    'ctx_batch_execute'
+  );
+});
+
+test('shortenToolName truncates non-MCP names with an ellipsis', () => {
+  assert.equal(shortenToolName('ToolSearch', 5), 'Tool…');
+});
+
+test('shortenToolName truncates long MCP final segments', () => {
+  assert.equal(shortenToolName('mcp__plugin__execute_long_name', 5), 'exec…');
+});
+
+test('shortenToolName handles very small max lengths', () => {
+  assert.equal(shortenToolName('ToolSearch', 1), '…');
+});
+
+test('renderToolsLine renders colliding shortened MCP names separately', () => {
+  const ctx = baseContext();
+  ctx.config.display.toolNameMaxLength = 20;
+  ctx.transcript.tools = [
+    { id: 'tool-1', name: 'mcp__a__run', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-2', name: 'mcp__b__run', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+  ];
+
+  const line = stripAnsi(renderToolsLine(ctx) ?? '');
+  assert.equal((line.match(/run ×1/g) ?? []).length, 2);
+});
+
+test('renderToolsLine respects toolsMaxVisible and preserves overflow indicator', () => {
+  const ctx = baseContext();
+  ctx.config.display.toolsMaxVisible = 2;
+  ctx.transcript.tools = [
+    { id: 'tool-1', name: 'Read', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-2', name: 'Edit', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-3', name: 'Write', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-4', name: 'Bash', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+  ];
+
+  const line = stripAnsi(renderToolsLine(ctx) ?? '');
+  assert.ok(line.includes('Read ×1'));
+  assert.ok(line.includes('Edit ×1'));
+  assert.ok(!line.includes('Write ×1'));
+  assert.ok(!line.includes('Bash ×1'));
+  assert.ok(line.includes('+2 more'));
+});
+
+test('render wraps all completed tools when toolsMaxVisible is unlimited', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'compact';
+  ctx.config.display.toolsMaxVisible = 0;
+  ctx.config.display.showContextBar = false;
+  ctx.config.display.showConfigCounts = false;
+  ctx.config.display.showUsage = false;
+  ctx.transcript.tools = [
+    { id: 'tool-1', name: 'Read', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-2', name: 'Edit', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-3', name: 'Write', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-4', name: 'Bash', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+    { id: 'tool-5', name: 'ToolSearch', status: 'completed', startTime: new Date(0), endTime: new Date(0) },
+  ];
+
+  let lines = [];
+  withTerminal(24, () => {
+    lines = captureRenderLines(ctx);
+  });
+
+  assert.ok(lines.length > 1, 'expected the tools line to wrap on a narrow terminal');
+  assert.ok(lines.some(line => line.includes('ToolSearch ×1')));
+  assert.ok(!lines.some(line => line.includes('more')));
+});
+
+test('renderToolsLine preserves running targets and path truncation with shortened tool names', () => {
+  const ctx = baseContext();
+  ctx.config.display.toolNameMaxLength = 4;
+  ctx.transcript.tools = [
+    {
+      id: 'tool-1',
+      name: 'mcp__plugin__long_running_tool',
+      target: '/tmp/very/long/path/to/authentication.ts',
+      status: 'running',
+      startTime: new Date(0),
+    },
+  ];
+
+  const line = stripAnsi(renderToolsLine(ctx) ?? '');
+  assert.ok(line.includes('lon…'));
+  assert.ok(line.includes('.../authentication.ts'));
+});
+
+test('mergeConfig validates tool display counts as non-negative integers', () => {
+  assert.equal(mergeConfig({ display: { toolNameMaxLength: 12 } }).display.toolNameMaxLength, 12);
+  assert.equal(mergeConfig({ display: { toolsMaxVisible: 0 } }).display.toolsMaxVisible, 0);
+  assert.equal(mergeConfig({ display: { toolsMaxVisible: 2 } }).display.toolsMaxVisible, 2);
+
+  for (const value of [-1, 'abc', null, 1.5]) {
+    assert.equal(mergeConfig({ display: { toolNameMaxLength: value } }).display.toolNameMaxLength, 0);
+    assert.equal(mergeConfig({ display: { toolsMaxVisible: value } }).display.toolsMaxVisible, 4);
+  }
 });
 
 test('renderToolsLine truncates long filenames', () => {

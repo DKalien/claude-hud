@@ -107,6 +107,8 @@ export interface HudConfig {
     showResetLabel: boolean;
     usageCompact: boolean;
     showTools: boolean;
+    toolNameMaxLength: number;
+    toolsMaxVisible: number;
     showAgents: boolean;
     showTodos: boolean;
     showSessionName: boolean;
@@ -171,6 +173,8 @@ export const DEFAULT_CONFIG: HudConfig = {
     showResetLabel: true,
     usageCompact: false,
     showTools: false,
+    toolNameMaxLength: 0,
+    toolsMaxVisible: 4,
     showAgents: false,
     showTodos: false,
     showSessionName: false,
@@ -417,6 +421,13 @@ function validateDurationSeconds(value: unknown, fallback: number): number {
   return Math.floor(value);
 }
 
+function validateNonNegativeInteger(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    return fallback;
+  }
+  return value;
+}
+
 function validateOptionalPath(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -528,6 +539,14 @@ export function mergeConfig(userConfig: Partial<HudConfig>): HudConfig {
     showTools: typeof migrated.display?.showTools === 'boolean'
       ? migrated.display.showTools
       : DEFAULT_CONFIG.display.showTools,
+    toolNameMaxLength: validateNonNegativeInteger(
+      migrated.display?.toolNameMaxLength,
+      DEFAULT_CONFIG.display.toolNameMaxLength,
+    ),
+    toolsMaxVisible: validateNonNegativeInteger(
+      migrated.display?.toolsMaxVisible,
+      DEFAULT_CONFIG.display.toolsMaxVisible,
+    ),
     showAgents: typeof migrated.display?.showAgents === 'boolean'
       ? migrated.display.showAgents
       : DEFAULT_CONFIG.display.showAgents,
