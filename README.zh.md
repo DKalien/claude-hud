@@ -15,7 +15,7 @@
 
 **步骤 1：添加市场**
 ```
-/plugin marketplace add jarrodwatts/claude-hud
+/plugin marketplace add DKalien/claude-hud
 ```
 
 **步骤 2：安装插件**
