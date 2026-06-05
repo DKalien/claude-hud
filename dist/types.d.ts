@@ -115,6 +115,17 @@ export interface TranscriptData {
     lastCompactPostTokens?: number;
     advisorModel?: string;
 }
+export interface MimoSnapshot {
+    updated_at: string | number;
+    plan_name?: string | null;
+    used_percentage?: number | null;
+    used_amount?: string | null;
+    total_amount?: string | null;
+    balance?: number | null;
+    balance_currency?: string | null;
+    expires_at?: string | number | null;
+    error?: string | null;
+}
 export interface RenderContext {
     stdin: StdinData;
     transcript: TranscriptData;
@@ -126,6 +137,7 @@ export interface RenderContext {
     gitStatus: GitStatus | null;
     usageData: UsageData | null;
     memoryUsage: MemoryInfo | null;
+    mimoSnapshot: MimoSnapshot | null;
     config: HudConfig;
     extraLabel: string | null;
     outputStyle?: string;

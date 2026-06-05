@@ -1,0 +1,5 @@
+{
+  "cookie": "serviceToken=\"/vjQa88K2JeX+vuUvl6J6Lz+hfn00CNZvGy8+4ude24AalKVVr+fj8c6LIOwEPzSexxrSZrsMV2S8+rMhjUUeJmAKSTAEuAXvF2WLn3UzwMhx/LpZm2m1TuQp2kBORGpwxB9izRzZrzd40ptpYpPCjYspqT5UjEVK1ODwRya2p8w5IS56P17J7AjVPrnyFxM8BZb9V5xpky3GXG5C4NbvZJSSOWGwSkEULr8NNab/8/h7qhwRogM4NY+K4RXOYjqdnA0DbLjWGO/sTjEemtXAIHsG/gjsAEAzujU01tDQTO3ffDhN4V3HDFaubTT/hUGEtytWgFVfIRsdt8fs1+miQWvpH/EY9JvdCFY2aJRJJE=\"; xiaomichatbot_ph=\"W1PYAkGCqUip5BxAns7Bbg==\"; api-platform_serviceToken=\"yVHEDQlNiFT1WavLtPFnez0an978sOXJEAxRfYwC7J/dBMLvDg11GaTeUjf+Cu6AHdp+msw67WOodf+o+fdAs7ynnVkaP3wkAaXeZ1Xgnyh+lPGVF4QvbvzJ70IsMioKqPH9kzXL3+l7MuHsk/9YvjO36ek37IMppbVdpGJDushzLFXBc/FF98RHLmYy/aGxfelNOwwG3mLx0AYvp8hqZY6tZ8BOqj4smpEtZrl8GHTLRQdpZcS/bxzNxI+RvyO9z6JBY/podhhEdSIEOYYRjoZtafoI4O3IFzOqS0gUjDZmUAcyoawpkbU4Q1bccPCJOLAoJLwuLVYUTiEFMgdQJVtvPBaAixO+yfiw9pPh15E=\"; userId=135189685; api-platform_slh=\"MVuAhhzJPrzoi5Giqet3Ul286Ig=\"; api-platform_ph=\"VbEvjsJdkHQO91wvI2YZFw==\"",
+  "interval_seconds": 300,
+  "snapshot_path": "~/.claude/plugins/claude-hud/mimo-snapshot.json"
+}

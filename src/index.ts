@@ -10,6 +10,7 @@ import { getMemoryUsage } from "./memory.js";
 import { resolveEffortLevel } from "./effort.js";
 import { applyContextWindowFallback } from "./context-cache.js";
 import { getUsageFromExternalSnapshot, writeExternalUsageSnapshot } from "./external-usage.js";
+import { getMimoSnapshot } from "./mimo-snapshot.js";
 import { setLanguage, t } from "./i18n/index.js";
 import type { RenderContext } from "./types.js";
 
@@ -22,6 +23,7 @@ export type MainDeps = {
   getUsageFromStdin: typeof getUsageFromStdin;
   getUsageFromExternalSnapshot: typeof getUsageFromExternalSnapshot;
   writeExternalUsageSnapshot: typeof writeExternalUsageSnapshot;
+  getMimoSnapshot: typeof getMimoSnapshot;
   parseTranscript: typeof parseTranscript;
   countConfigs: typeof countConfigs;
   getGitStatus: typeof getGitStatus;
@@ -42,6 +44,7 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
     getUsageFromStdin,
     getUsageFromExternalSnapshot,
     writeExternalUsageSnapshot,
+    getMimoSnapshot,
     parseTranscript,
     countConfigs,
     getGitStatus,
@@ -125,6 +128,10 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
         ? await deps.getMemoryUsage()
         : null;
 
+    const mimoSnapshot = config.display.showMimoUsage
+      ? deps.getMimoSnapshot(config, deps.now())
+      : null;
+
     const ctx: RenderContext = {
       stdin,
       transcript,
@@ -136,6 +143,7 @@ export async function main(overrides: Partial<MainDeps> = {}): Promise<void> {
       gitStatus,
       usageData,
       memoryUsage,
+      mimoSnapshot,
       config,
       extraLabel,
       outputStyle,

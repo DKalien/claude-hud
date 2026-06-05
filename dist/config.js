@@ -10,6 +10,7 @@ export const DEFAULT_ELEMENT_ORDER = [
     'promptCache',
     'memory',
     'environment',
+    'mimo',
     'tools',
     'agents',
     'todos',
@@ -86,6 +87,9 @@ export const DEFAULT_CONFIG = {
         showAdvisor: false,
         advisorOverride: '',
         autoCompactWindow: null,
+        showMimoUsage: false,
+        mimoSnapshotPath: '',
+        mimoFreshnessMs: 300_000,
     },
     colors: {
         context: 'green',
@@ -466,6 +470,11 @@ export function mergeConfig(userConfig) {
             ? migrated.display.advisorOverride.slice(0, 80)
             : DEFAULT_CONFIG.display.advisorOverride,
         autoCompactWindow: validateAutoCompactWindow(migrated.display?.autoCompactWindow),
+        showMimoUsage: typeof migrated.display?.showMimoUsage === 'boolean'
+            ? migrated.display.showMimoUsage
+            : DEFAULT_CONFIG.display.showMimoUsage,
+        mimoSnapshotPath: validateOptionalPath(migrated.display?.mimoSnapshotPath),
+        mimoFreshnessMs: validateFreshnessMs(migrated.display?.mimoFreshnessMs),
     };
     const colors = {
         context: validateColorValue(migrated.colors?.context)

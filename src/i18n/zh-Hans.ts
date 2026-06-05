@@ -15,6 +15,7 @@ export const zhHans: Messages = {
   "label.sessionStarted": "开始",
   "label.lastReply": "上次回复",
   "label.advisor": "顾问",
+  "label.mimo": "MIMO",
 
   // Status
   "status.limitReached": "已达上限",

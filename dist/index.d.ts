@@ -9,12 +9,14 @@ import { getClaudeCodeVersion } from "./version.js";
 import { getMemoryUsage } from "./memory.js";
 import { applyContextWindowFallback } from "./context-cache.js";
 import { getUsageFromExternalSnapshot, writeExternalUsageSnapshot } from "./external-usage.js";
+import { getMimoSnapshot } from "./mimo-snapshot.js";
 export { getUsageFromExternalSnapshot, writeExternalUsageSnapshot } from "./external-usage.js";
 export type MainDeps = {
     readStdin: typeof readStdin;
     getUsageFromStdin: typeof getUsageFromStdin;
     getUsageFromExternalSnapshot: typeof getUsageFromExternalSnapshot;
     writeExternalUsageSnapshot: typeof writeExternalUsageSnapshot;
+    getMimoSnapshot: typeof getMimoSnapshot;
     parseTranscript: typeof parseTranscript;
     countConfigs: typeof countConfigs;
     getGitStatus: typeof getGitStatus;

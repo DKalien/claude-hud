@@ -8,3 +8,4 @@ export { renderMemoryLine } from './memory.js';
 export { renderSessionTokensLine } from './session-tokens.js';
 export { renderSessionTimeLine } from './session-time.js';
 export { renderAdvisorLine, prettifyAdvisorId } from './advisor.js';
+export { renderMimoLine } from './mimo.js';

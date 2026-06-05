@@ -10,6 +10,7 @@ import { getMemoryUsage } from "./memory.js";
 import { resolveEffortLevel } from "./effort.js";
 import { applyContextWindowFallback } from "./context-cache.js";
 import { getUsageFromExternalSnapshot, writeExternalUsageSnapshot } from "./external-usage.js";
+import { getMimoSnapshot } from "./mimo-snapshot.js";
 import { setLanguage, t } from "./i18n/index.js";
 export { getUsageFromExternalSnapshot, writeExternalUsageSnapshot } from "./external-usage.js";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,7 @@ export async function main(overrides = {}) {
         getUsageFromStdin,
         getUsageFromExternalSnapshot,
         writeExternalUsageSnapshot,
+        getMimoSnapshot,
         parseTranscript,
         countConfigs,
         getGitStatus,
@@ -86,6 +88,9 @@ export async function main(overrides = {}) {
         const memoryUsage = config.display.showMemoryUsage && config.lineLayout === "expanded"
             ? await deps.getMemoryUsage()
             : null;
+        const mimoSnapshot = config.display.showMimoUsage
+            ? deps.getMimoSnapshot(config, deps.now())
+            : null;
         const ctx = {
             stdin,
             transcript,
@@ -97,6 +102,7 @@ export async function main(overrides = {}) {
             gitStatus,
             usageData,
             memoryUsage,
+            mimoSnapshot,
             config,
             extraLabel,
             outputStyle,

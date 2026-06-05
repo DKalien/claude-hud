@@ -21,7 +21,7 @@ export type GitBranchOverflowMode = 'truncate' | 'wrap';
 export type ModelFormatMode = 'full' | 'compact' | 'short';
 export type TimeFormatMode = 'relative' | 'absolute' | 'both' | 'elapsed' | 'elapsedAndAbsolute';
 export type CustomLinePosition = 'first' | 'last';
-export type HudElement = 'project' | 'addedDirs' | 'context' | 'usage' | 'promptCache' | 'memory' | 'environment' | 'tools' | 'agents' | 'todos' | 'sessionTime';
+export type HudElement = 'project' | 'addedDirs' | 'context' | 'usage' | 'promptCache' | 'memory' | 'environment' | 'mimo' | 'tools' | 'agents' | 'todos' | 'sessionTime';
 
 export type AddedDirsLayout = 'inline' | 'line';
 export type HudColorName =
@@ -61,6 +61,7 @@ export const DEFAULT_ELEMENT_ORDER: HudElement[] = [
   'promptCache',
   'memory',
   'environment',
+  'mimo',
   'tools',
   'agents',
   'todos',
@@ -146,6 +147,9 @@ export interface HudConfig {
     // shorter label or transcript has not been written yet.
     advisorOverride: string;
     autoCompactWindow: number | null;
+    showMimoUsage: boolean;
+    mimoSnapshotPath: string;
+    mimoFreshnessMs: number;
   };
   colors: HudColorOverrides;
 }
@@ -217,6 +221,9 @@ export const DEFAULT_CONFIG: HudConfig = {
     showAdvisor: false,
     advisorOverride: '',
     autoCompactWindow: null,
+    showMimoUsage: false,
+    mimoSnapshotPath: '',
+    mimoFreshnessMs: 300_000,
   },
   colors: {
     context: 'green',
@@ -656,6 +663,11 @@ export function mergeConfig(userConfig: Partial<HudConfig>): HudConfig {
       ? migrated.display.advisorOverride.slice(0, 80)
       : DEFAULT_CONFIG.display.advisorOverride,
     autoCompactWindow: validateAutoCompactWindow(migrated.display?.autoCompactWindow),
+    showMimoUsage: typeof migrated.display?.showMimoUsage === 'boolean'
+      ? migrated.display.showMimoUsage
+      : DEFAULT_CONFIG.display.showMimoUsage,
+    mimoSnapshotPath: validateOptionalPath(migrated.display?.mimoSnapshotPath),
+    mimoFreshnessMs: validateFreshnessMs(migrated.display?.mimoFreshnessMs),
   };
 
   const colors = {
