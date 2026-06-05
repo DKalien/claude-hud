@@ -45,6 +45,9 @@ Thumbs.db
 secrets/
 credentials/
 
+# Tool config with local credentials
+tools/mimo-monitor/config.json
+
 # Test coverage
 coverage/
 .nyc_output/
