@@ -89,7 +89,7 @@ export const DEFAULT_CONFIG = {
         autoCompactWindow: null,
         showMimoUsage: false,
         mimoSnapshotPath: '',
-        mimoFreshnessMs: 300_000,
+        mimoFreshnessMs: 400_000,
     },
     colors: {
         context: 'green',

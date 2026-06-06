@@ -2,8 +2,10 @@
 
 一个 Claude Code 插件，实时显示正在发生的事情——上下文使用率、活跃工具、运行中的 Agent 和待办进度。始终在你的输入下方可见。
 
-[![License](https://img.shields.io/github/license/jarrodwatts/claude-hud?v=2)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/jarrodwatts/claude-hud)](https://github.com/jarrodwatts/claude-hud/stargazers)
+> **Fork**: 这是 [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) 的 fork 版本，由 DKalien 维护，新增了 MIMO Token Plan 集成等功能。
+
+[![License](https://img.shields.io/github/license/DKalien/claude-hud?v=2)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/DKalien/claude-hud)](https://github.com/DKalien/claude-hud/stargazers)
 
 ![Claude HUD in action](claude-hud-preview-5-2.png)
 
