@@ -86,6 +86,12 @@ src/
         ├── identity.ts   # Line 2a: context bar
         ├── usage.ts      # Line 2b: usage bar (combined with identity)
         ├── mimo.ts       # MIMO usage line (opt-in, external snapshot)
+        ├── session-tokens.ts # Session token totals (opt-in)
+        ├── session-time.ts   # Session duration (opt-in)
+        ├── prompt-cache.ts   # Prompt cache countdown (opt-in)
+        ├── memory.ts     # System RAM usage (opt-in)
+        ├── cost.ts       # Session cost estimate (opt-in)
+        ├── advisor.ts    # Advisor model display (opt-in)
         └── environment.ts # Config counts (opt-in)
 ```
 
@@ -101,6 +107,9 @@ Lines 1-2 always shown. MIMO is opt-in via `display.showMimoUsage` and merges wi
 - Agents line (`showAgents`): ◐ explore [haiku]: Finding auth code
 - Todos line (`showTodos`): ▸ Fix authentication bug (2/5)
 - Environment line (`showConfigCounts`): 2 CLAUDE.md | 4 rules
+- Session tokens line (`showSessionTokens`): Tokens 12.8M (in: 7k, out: 28k, cache: 12.8M)
+
+All opt-in elements (including `sessionTokens`) are `HudElement` values controllable via `elementOrder` in config. Adjacent elements in the same `mergeGroups` group are merged onto one line when they fit.
 
 ### Context Thresholds
 
