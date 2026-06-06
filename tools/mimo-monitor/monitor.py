@@ -318,6 +318,31 @@ def safe_str(s: str) -> str:
         return s.encode('ascii', errors='replace').decode('ascii')
 
 
+def check_daemon_running(pid_file: str) -> bool:
+    """Check if daemon is already running"""
+    try:
+        if not os.path.exists(pid_file):
+            return False
+        with open(pid_file, 'r') as f:
+            pid = int(f.read().strip())
+        # Check if process is still alive
+        os.kill(pid, 0)
+        return True
+    except (OSError, ValueError, ProcessLookupError):
+        # Process not running, clean up stale pid file
+        try:
+            os.remove(pid_file)
+        except OSError:
+            pass
+        return False
+
+
+def write_pid_file(pid_file: str):
+    """Write current PID to file"""
+    with open(pid_file, 'w') as f:
+        f.write(str(os.getpid()))
+
+
 def main():
     parser = argparse.ArgumentParser(description="MIMO Token Plan Monitor")
     parser.add_argument(
@@ -330,32 +355,69 @@ def main():
         action="store_true",
         help="Run once (for debugging)",
     )
+    parser.add_argument(
+        "--daemon",
+        action="store_true",
+        help="Run as daemon in background (auto-exit when idle)",
+    )
+    parser.add_argument(
+        "--idle-timeout",
+        type=int,
+        default=1800,
+        help="Auto-exit after N seconds of no Claude activity (default: 1800 = 30min)",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
     cookie = config["cookie"]
     interval = config["interval_seconds"]
-    snapshot_path = config["snapshot_path"]
+    snapshot_path = str(config["snapshot_path"])
 
-    print(f"MIMO Monitor Started")
-    print(f"  Snapshot: {snapshot_path}")
-    print(f"  Interval: {interval}s")
+    # PID file for daemon mode
+    pid_file = str(Path(__file__).parent / "monitor.pid")
+
+    # Daemon mode: check if already running, then fork to background
+    if args.daemon:
+        if check_daemon_running(pid_file):
+            # Already running, exit silently
+            sys.exit(0)
+
+        # Write PID file before forking
+        write_pid_file(pid_file)
+
+        # On Windows, just continue in background (no fork)
+        # The caller (statusLine wrapper) will detach us
 
     # Graceful exit
     running = True
 
     def signal_handler(sig, frame):
         nonlocal running
-        print("\nStopping...")
+        # Clean up PID file on exit
+        try:
+            os.remove(pid_file)
+        except OSError:
+            pass
         running = False
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
+    # Track last Claude activity (snapshot file read time)
+    last_activity = time.time()
+
     while running:
         snapshot = run_once(cookie, snapshot_path)
 
         if write_snapshot(snapshot_path, snapshot):
+            # Check if snapshot was recently read (Claude is active)
+            try:
+                stat = os.stat(snapshot_path)
+                if stat.st_atime > last_activity:
+                    last_activity = stat.st_atime
+            except OSError:
+                pass
+
             status = "[OK]" if not snapshot.get("error") else "[!]"
             plan = safe_str(snapshot.get("plan_name") or "unknown")
             pct = snapshot.get("used_percentage")
@@ -368,11 +430,24 @@ def main():
         if args.once:
             break
 
-        # 等待下一次轮询
+        # In daemon mode, check idle timeout
+        if args.daemon and args.idle_timeout > 0:
+            idle_seconds = time.time() - last_activity
+            if idle_seconds > args.idle_timeout:
+                print(f"Idle timeout ({args.idle_timeout}s), exiting")
+                break
+
+        # Wait for next poll
         for _ in range(interval):
             if not running:
                 break
             time.sleep(1)
+
+    # Clean up PID file
+    try:
+        os.remove(pid_file)
+    except OSError:
+        pass
 
     print("Monitor stopped")
 

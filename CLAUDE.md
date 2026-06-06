@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-Claude HUD is a Claude Code plugin that displays a real-time multi-line statusline. It shows context health, tool activity, agent status, and todo progress.
+Claude HUD is a Claude Code plugin that displays a real-time multi-line statusline. It shows context health, tool activity, agent status, todo progress, and optional third-party usage monitors (e.g. MIMO Token Plan).
 
 ## Build Commands
 
@@ -57,6 +57,10 @@ Claude Code → stdin JSON → parse → render lines → stdout → Claude Code
 - `rate_limits.seven_day.used_percentage` - 7-day subscriber usage percentage
 - `rate_limits.seven_day.resets_at` - 7-day reset timestamp
 
+**From external snapshot files** (opt-in):
+- MIMO Token Plan: `display.mimoSnapshotPath` → JSON with `used_percentage`, `balance`, etc.
+- External tools write snapshots; HUD reads them (credentials never touch HUD)
+
 ### File Structure
 
 ```
@@ -67,6 +71,7 @@ src/
 ├── config-reader.ts   # Read MCP/rules configs
 ├── config.ts          # Load/validate user config
 ├── git.ts             # Git status (branch, dirty, ahead/behind)
+├── mimo-snapshot.ts   # MIMO Token Plan snapshot reader
 ├── types.ts           # TypeScript interfaces
 └── render/
     ├── index.ts       # Main render coordinator
@@ -80,17 +85,23 @@ src/
         ├── project.ts    # Line 1: model bracket + project + git
         ├── identity.ts   # Line 2a: context bar
         ├── usage.ts      # Line 2b: usage bar (combined with identity)
+        ├── mimo.ts       # MIMO usage line (opt-in, external snapshot)
         └── environment.ts # Config counts (opt-in)
+
+tools/
+└── mimo-monitor/      # Standalone MIMO API poller (writes snapshot)
+    ├── monitor.py     # Polling script
+    └── config.json.example
 ```
 
 ### Output Format (default expanded layout)
 
 ```
 [Opus] │ my-project git:(main*)
-Context █████░░░░░ 45% │ Usage ██░░░░░░░░ 25% (1h 30m / 5h)
+Context █████░░░░░ 45% │ Usage ██░░░░░░░░ 25% │ MIMO ██░░░░░░░░ 2% │ 1.9B / 82.0B
 ```
 
-Lines 1-2 always shown. Additional lines are opt-in via config:
+Lines 1-2 always shown. MIMO is opt-in via `display.showMimoUsage` and merges with Context/Usage line by default. Additional lines are opt-in via config:
 - Tools line (`showTools`): ◐ Edit: auth.ts | ✓ Read ×3
 - Agents line (`showAgents`): ◐ explore [haiku]: Finding auth code
 - Todos line (`showTodos`): ▸ Fix authentication bug (2/5)
