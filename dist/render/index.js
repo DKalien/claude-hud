@@ -327,6 +327,8 @@ function renderElementLine(ctx, element, options) {
             return display?.showTodos === false ? null : renderTodosLine(ctx);
         case 'sessionTime':
             return renderSessionTimeLine(ctx);
+        case 'sessionTokens':
+            return renderSessionTokensLine(ctx);
     }
 }
 function renderCompact(ctx) {
@@ -423,13 +425,6 @@ export function render(ctx) {
     if (lineLayout === 'expanded') {
         const renderedLines = renderExpanded(ctx, terminalWidth);
         lines = renderedLines.map(({ line }) => line);
-        // Session token usage (cumulative)
-        if (ctx.config?.display?.showSessionTokens) {
-            const sessionTokensLine = renderSessionTokensLine(ctx);
-            if (sessionTokensLine) {
-                lines.push(sessionTokensLine);
-            }
-        }
         // Advisor is rendered inline on the project line; see renderProjectLine.
         if (showSeparators) {
             const firstActivityIndex = renderedLines.findIndex(({ isActivity }) => isActivity);

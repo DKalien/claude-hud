@@ -15,6 +15,7 @@ export const DEFAULT_ELEMENT_ORDER = [
     'agents',
     'todos',
     'sessionTime',
+    'sessionTokens',
 ];
 export const DEFAULT_MERGE_GROUPS = [
     ['context', 'usage'],

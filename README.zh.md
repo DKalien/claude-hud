@@ -13,6 +13,8 @@
 
 ## 安装
 
+**需要 Claude Code CLI** — [点击安装](https://claude.ai/code)。
+
 在 Claude Code 实例中，运行以下命令：
 
 **步骤 1：添加市场**
@@ -93,6 +95,8 @@ Claude HUD 让你在 Claude Code 会话中获得更清晰的洞察。
 - **第 1 行** — 模型、提供商标签（如能正面识别，例如 `Bedrock`、`Vertex`）、项目路径、git 分支
 - **第 2 行** — 上下文进度条（绿 → 黄 → 红）和使用率限制
 
+<p align="center"><img src="assets/screenshot-rate-limits.png" alt="Rate limits" width="400"></p>
+
 ### 可选行（通过 `/claude-hud:configure` 启用）
 ```
 ◐ Edit: auth.ts | ✓ Read ×3 | ✓ Grep ×2        ← 工具活动
@@ -172,6 +176,7 @@ Claude Code → stdin JSON → claude-hud → stdout → 在终端中显示
 | `display.addedDirsLayout` | `inline` \| `line` | `inline` | `inline` 将目录放在项目名称旁边，每个目录带 `+name` 前缀；`line` 在单独的 `Added dirs: name1, name2` 行渲染（无 `+` 前缀，逗号分隔） |
 | `display.showContextBar` | boolean | true | 显示可视化上下文进度条 `████░░░░░░` |
 | `display.contextValue` | `percent` \| `tokens` \| `remaining` \| `both` | `percent` | 上下文显示格式（`45%`、`45k/200k`、剩余 `55%` 或 `45% (45k/200k)`） |
+| `display.autoCompactWindow` | number \| `null` | `null` | 设为正数（如 `200000`）时，基于此自动压缩窗口计算上下文百分比，而非完整的模型上下文窗口，与 `/context` 显示的数字一致。不设置或设为 `null` 则保持默认的全窗口行为 |
 | `display.showConfigCounts` | boolean | false | 显示 CLAUDE.md、rules、MCPs、hooks 数量 |
 | `display.showCost` | boolean | false | 使用 Claude Code 原生提供的 `cost.total_cost_usd` 显示会话费用（可用时），并附带本地估算回退方案 |
 | `display.showOutputStyle` | boolean | false | 从配置文件显示当前 Claude Code `outputStyle`，格式为 `style: <名称>` |

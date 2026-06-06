@@ -21,7 +21,7 @@ export type GitBranchOverflowMode = 'truncate' | 'wrap';
 export type ModelFormatMode = 'full' | 'compact' | 'short';
 export type TimeFormatMode = 'relative' | 'absolute' | 'both' | 'elapsed' | 'elapsedAndAbsolute';
 export type CustomLinePosition = 'first' | 'last';
-export type HudElement = 'project' | 'addedDirs' | 'context' | 'usage' | 'promptCache' | 'memory' | 'environment' | 'mimo' | 'tools' | 'agents' | 'todos' | 'sessionTime';
+export type HudElement = 'project' | 'addedDirs' | 'context' | 'usage' | 'promptCache' | 'memory' | 'environment' | 'mimo' | 'tools' | 'agents' | 'todos' | 'sessionTime' | 'sessionTokens';
 
 export type AddedDirsLayout = 'inline' | 'line';
 export type HudColorName =
@@ -66,6 +66,7 @@ export const DEFAULT_ELEMENT_ORDER: HudElement[] = [
   'agents',
   'todos',
   'sessionTime',
+  'sessionTokens',
 ];
 
 export const DEFAULT_MERGE_GROUPS: HudElement[][] = [
