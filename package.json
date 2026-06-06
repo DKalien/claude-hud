@@ -23,7 +23,7 @@
     "statusline",
     "hud"
   ],
-  "author": "DKalien",
+  "author": "Jarrod Watts (original), DKalien (fork)",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"

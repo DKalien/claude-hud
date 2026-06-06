@@ -2,8 +2,10 @@
 
 A Claude Code plugin that shows what's happening — context usage, active tools, running agents, and todo progress. Always visible below your input.
 
-[![License](https://img.shields.io/github/license/jarrodwatts/claude-hud?v=2)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/jarrodwatts/claude-hud)](https://github.com/jarrodwatts/claude-hud/stargazers)
+> **Fork**: This is a fork of [jarrodwatts/claude-hud](https://github.com/jarrodwatts/claude-hud) by DKalien, with additional features (MIMO Token Plan integration).
+
+[![License](https://img.shields.io/github/license/DKalien/claude-hud?v=2)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/DKalien/claude-hud)](https://github.com/DKalien/claude-hud/stargazers)
 
 ![Claude HUD in action](claude-hud-preview-5-2.png)
 

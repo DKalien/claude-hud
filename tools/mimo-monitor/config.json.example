@@ -1,5 +1,0 @@
-{
-  "cookie": "<your_cookie_here>",
-  "interval_seconds": 300,
-  "snapshot_path": "~/.claude/plugins/claude-hud/mimo-snapshot.json"
-}

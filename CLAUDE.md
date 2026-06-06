@@ -87,11 +87,6 @@ src/
         ├── usage.ts      # Line 2b: usage bar (combined with identity)
         ├── mimo.ts       # MIMO usage line (opt-in, external snapshot)
         └── environment.ts # Config counts (opt-in)
-
-tools/
-└── mimo-monitor/      # Standalone MIMO API poller (writes snapshot)
-    ├── monitor.py     # Polling script
-    └── config.json.example
 ```
 
 ### Output Format (default expanded layout)
