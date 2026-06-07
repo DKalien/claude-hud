@@ -4,6 +4,11 @@ All notable changes to Claude HUD will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-07
+
+### Fixed
+- Rebuild dist/ to include `mimo.ts` (MIMO Token Plan usage line) which was missing from the v0.1.0 marketplace package. The v0.1.0 tag was created before `mimo.ts` was added to the source tree.
+
 ## [0.1.0] - 2026-06-03
 
 ### Added
