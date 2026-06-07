@@ -17,7 +17,7 @@ Inside a Claude Code instance, run the following commands:
 
 **Step 1: Add the marketplace**
 ```
-/plugin marketplace add jarrodwatts/claude-hud
+/plugin marketplace add DKalien/claude-hud
 ```
 
 **Step 2: Install the plugin**
