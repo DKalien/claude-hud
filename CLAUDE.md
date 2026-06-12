@@ -70,6 +70,7 @@ src/
 ├── cost.ts              # Cost estimation (native stdin cost preferred)
 ├── effort.ts            # Thinking effort parsing
 ├── external-usage.ts    # External usage snapshot fallback / balance_label
+├── mimo-snapshot.ts     # MIMO snapshot parsing (fork-specific)
 ├── speed-tracker.ts     # Output speed tracking
 ├── context-cache.ts     # Context/usage caching across invocations
 ├── memory.ts            # System memory stats
@@ -104,6 +105,7 @@ src/
         ├── session-time.ts  # Session duration / timestamps
         ├── session-tokens.ts # Session token totals
         ├── added-dirs.ts    # /add-dir workspace directories
+        ├── mimo.ts          # MIMO usage display (fork-specific)
         └── label-align.ts   # Label column alignment
 ```
 
@@ -120,6 +122,7 @@ Lines 1-2 always shown. Additional lines are opt-in via config:
 - Agents line (`showAgents`): ◐ explore [haiku]: Finding auth code
 - Todos line (`showTodos`): ▸ Fix authentication bug (2/5)
 - Environment line (`showConfigCounts`): 2 CLAUDE.md | 4 rules
+- MIMO line (`showMimoUsage`): MIMO plan usage with progress bar (fork-specific)
 - Advisor label (`showAdvisor`): inlined on the project line, e.g. `Advisor: Opus 4.7`
 
 ### Context Thresholds
