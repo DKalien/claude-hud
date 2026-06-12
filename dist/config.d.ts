@@ -14,7 +14,7 @@ export type GitBranchOverflowMode = 'truncate' | 'wrap';
 export type ModelFormatMode = 'full' | 'compact' | 'short';
 export type TimeFormatMode = 'relative' | 'absolute' | 'both' | 'elapsed' | 'elapsedAndAbsolute';
 export type CustomLinePosition = 'first' | 'last';
-export type HudElement = 'project' | 'addedDirs' | 'context' | 'usage' | 'promptCache' | 'memory' | 'environment' | 'tools' | 'skills' | 'mcp' | 'agents' | 'todos' | 'sessionTime';
+export type HudElement = 'project' | 'addedDirs' | 'context' | 'usage' | 'promptCache' | 'memory' | 'environment' | 'mimo' | 'tools' | 'skills' | 'mcp' | 'agents' | 'todos' | 'sessionTime' | 'sessionTokens';
 export type AddedDirsLayout = 'inline' | 'line';
 export type HudColorName = 'dim' | 'red' | 'green' | 'yellow' | 'magenta' | 'cyan' | 'brightBlue' | 'brightMagenta';
 /** A color value: named preset, 256-color index (0-255), or hex string (#rrggbb). */
@@ -105,6 +105,9 @@ export interface HudConfig {
         showAdvisor: boolean;
         advisorOverride: string;
         autoCompactWindow: number | null;
+        showMimoUsage: boolean;
+        mimoSnapshotPath: string;
+        mimoFreshnessMs: number;
     };
     colors: HudColorOverrides;
 }

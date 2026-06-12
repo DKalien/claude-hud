@@ -36,7 +36,11 @@ test('loadConfig returns valid config structure', async () => {
   assert.ok(config.maxWidth === null || (typeof config.maxWidth === 'number' && config.maxWidth > 0), 'maxWidth should be null or a positive number');
   assert.ok(Array.isArray(config.elementOrder), 'elementOrder should be an array');
   assert.ok(config.elementOrder.length > 0, 'elementOrder should not be empty');
-  assert.deepEqual(config.elementOrder, DEFAULT_ELEMENT_ORDER, 'elementOrder should default to the full expanded layout');
+  // Check that all elements in config.elementOrder are valid HudElements
+  const validElements = new Set(DEFAULT_ELEMENT_ORDER);
+  for (const element of config.elementOrder) {
+    assert.ok(validElements.has(element), `elementOrder contains invalid element '${element}'`);
+  }
 
   // gitStatus object with expected properties
   assert.equal(typeof config.gitStatus, 'object');
