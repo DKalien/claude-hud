@@ -99,10 +99,13 @@ test('writeExternalUsageSnapshot writes stdin rate limits to the configured path
   try {
     const wrote = writeExternalUsageSnapshot(makeWriteConfig(filePath), usage, now);
     const snapshot = JSON.parse(await readFile(filePath, 'utf8'));
-    const fileMode = (await stat(filePath)).mode & 0o777;
 
     assert.equal(wrote, true);
-    assert.equal(fileMode, 0o600);
+    // On Windows, chmod doesn't work as expected, so skip file mode check
+    if (process.platform !== 'win32') {
+      const fileMode = (await stat(filePath)).mode & 0o777;
+      assert.equal(fileMode, 0o600);
+    }
     assert.deepEqual(snapshot, {
       updated_at: new Date(now).toISOString(),
       five_hour: {

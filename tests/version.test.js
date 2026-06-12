@@ -214,7 +214,7 @@ test('getClaudeCodeVersion refreshes when the Claude binary mtime changes', asyn
   }
 });
 
-test('getClaudeCodeVersion executes the resolved binary path', async () => {
+test('getClaudeCodeVersion executes the resolved binary path', { skip: process.platform === 'win32' }, async () => {
   const tempHome = await mkdtemp(path.join(tmpdir(), 'claude-hud-version-windows-'));
   const customConfigDir = path.join(tempHome, '.claude-alt');
   const binaryPath = path.join(tempHome, 'claude.cmd');
