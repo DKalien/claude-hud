@@ -4,6 +4,28 @@ All notable changes to Claude HUD will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-12
+
+### Added
+- Merge upstream updates while preserving MIMO snapshot functionality (#608, #606, #604)
+- Skills and MCP activity display elements (`showSkills` / `showMcp`)
+- Balance label display alongside stdin rate_limits
+- Fallback speed estimation via transcript file growth
+
+### Fixed
+- Windows platform compatibility for tests (HOME/USERPROFILE, file permissions, path handling)
+- i18n: translate "token" as "词元" instead of "令牌" in Simplified Chinese
+- Stabilize setup and bash tool targets
+- Harden skills and MCP activity rendering
+- Render external balance with usage windows
+
+### Changed
+- Updated test suite for Windows platform compatibility
+- Improved error handling and edge case coverage
+
+### Dependencies
+- Bump `@types/node` from 25.9.1 to 25.9.2
+
 ## [0.1.1] - 2026-06-09
 
 ### Added
