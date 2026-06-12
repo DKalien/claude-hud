@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-Claude HUD is a Claude Code plugin that displays a real-time multi-line statusline. It shows context health, tool activity, agent status, todo progress, and optional third-party usage monitors (e.g. MIMO Token Plan).
+Claude HUD is a Claude Code plugin that displays a real-time multi-line statusline. It shows context health, tool activity, agent status, and todo progress.
 
 ## Build Commands
 
@@ -57,59 +57,70 @@ Claude Code → stdin JSON → parse → render lines → stdout → Claude Code
 - `rate_limits.seven_day.used_percentage` - 7-day subscriber usage percentage
 - `rate_limits.seven_day.resets_at` - 7-day reset timestamp
 
-**From external snapshot files** (opt-in):
-- MIMO Token Plan: `display.mimoSnapshotPath` → JSON with `used_percentage`, `balance`, etc.
-- External tools write snapshots; HUD reads them (credentials never touch HUD)
-
 ### File Structure
 
 ```
 src/
-├── index.ts           # Entry point
-├── stdin.ts           # Parse Claude's JSON input
-├── transcript.ts      # Parse transcript JSONL
-├── config-reader.ts   # Read MCP/rules configs
-├── config.ts          # Load/validate user config
-├── git.ts             # Git status (branch, dirty, ahead/behind)
-├── mimo-snapshot.ts   # MIMO Token Plan snapshot reader
-├── types.ts           # TypeScript interfaces
+├── index.ts             # Entry point
+├── stdin.ts             # Parse Claude's JSON input
+├── transcript.ts        # Parse transcript JSONL
+├── config-reader.ts     # Read MCP/rules configs
+├── config.ts            # Load/validate user config
+├── git.ts               # Git status (branch, dirty, ahead/behind)
+├── cost.ts              # Cost estimation (native stdin cost preferred)
+├── effort.ts            # Thinking effort parsing
+├── external-usage.ts    # External usage snapshot fallback / balance_label
+├── speed-tracker.ts     # Output speed tracking
+├── context-cache.ts     # Context/usage caching across invocations
+├── memory.ts            # System memory stats
+├── claude-config-dir.ts # Resolve the Claude config directory
+├── constants.ts         # Shared constants
+├── debug.ts             # Debug logging
+├── extra-cmd.ts         # Run an optional user command for a custom label
+├── version.ts           # Plugin version handling
+├── i18n/                # HUD label translations (en, zh-Hans)
+├── utils/               # Shared helpers
+├── types.ts             # TypeScript interfaces
 └── render/
-    ├── index.ts       # Main render coordinator
-    ├── session-line.ts   # Compact mode: single line with all info
-    ├── tools-line.ts     # Tool activity (opt-in)
-    ├── agents-line.ts    # Agent status (opt-in)
-    ├── todos-line.ts     # Todo progress (opt-in)
-    ├── colors.ts         # ANSI color helpers
+    ├── index.ts             # Main render coordinator
+    ├── session-line.ts      # Compact mode: single line with all info
+    ├── tools-line.ts        # Tool activity (opt-in)
+    ├── skills-mcp-line.ts   # Skills & MCP activity (opt-in)
+    ├── agents-line.ts       # Agent status (opt-in)
+    ├── todos-line.ts        # Todo progress (opt-in)
+    ├── colors.ts            # ANSI color helpers
+    ├── width.ts             # Terminal width / CJK-aware measurement
+    ├── format-reset-time.ts # Usage reset time formatting
     └── lines/
-        ├── index.ts      # Barrel export
-        ├── project.ts    # Line 1: model bracket + project + git
-        ├── identity.ts   # Line 2a: context bar
-        ├── usage.ts      # Line 2b: usage bar (combined with identity)
-        ├── mimo.ts       # MIMO usage line (opt-in, external snapshot)
-        ├── session-tokens.ts # Session token totals (opt-in)
-        ├── session-time.ts   # Session duration (opt-in)
-        ├── prompt-cache.ts   # Prompt cache countdown (opt-in)
-        ├── memory.ts     # System RAM usage (opt-in)
-        ├── cost.ts       # Session cost estimate (opt-in)
-        ├── advisor.ts    # Advisor model display (opt-in)
-        └── environment.ts # Config counts (opt-in)
+        ├── index.ts         # Barrel export
+        ├── project.ts       # Model bracket + project + git (+ advisor)
+        ├── identity.ts      # Context bar
+        ├── usage.ts         # Usage bar (merged with context by default)
+        ├── environment.ts   # Config counts (opt-in)
+        ├── advisor.ts       # Advisor model label (opt-in)
+        ├── cost.ts          # Session cost display
+        ├── prompt-cache.ts  # Prompt cache countdown
+        ├── memory.ts        # Memory usage display
+        ├── session-time.ts  # Session duration / timestamps
+        ├── session-tokens.ts # Session token totals
+        ├── added-dirs.ts    # /add-dir workspace directories
+        └── label-align.ts   # Label column alignment
 ```
 
 ### Output Format (default expanded layout)
 
 ```
 [Opus] │ my-project git:(main*)
-Context █████░░░░░ 45% │ Usage ██░░░░░░░░ 25% │ MIMO ██░░░░░░░░ 2% │ 1.9B / 82.0B
+Context █████░░░░░ 45% │ Usage ██░░░░░░░░ 25% (1h 30m / 5h)
 ```
 
-Lines 1-2 always shown. MIMO is opt-in via `display.showMimoUsage` and merges with Context/Usage line by default. Additional lines are opt-in via config:
+Lines 1-2 always shown. Additional lines are opt-in via config:
 - Tools line (`showTools`): ◐ Edit: auth.ts | ✓ Read ×3
+- Skills/MCP lines (`showSkills` / `showMcp`): active Skill invocations and MCP servers; when the Skills line is enabled, Skill-tool entries are suppressed from the tools line
 - Agents line (`showAgents`): ◐ explore [haiku]: Finding auth code
 - Todos line (`showTodos`): ▸ Fix authentication bug (2/5)
 - Environment line (`showConfigCounts`): 2 CLAUDE.md | 4 rules
-- Session tokens line (`showSessionTokens`): Tokens 12.8M (in: 7k, out: 28k, cache: 12.8M)
-
-All opt-in elements (including `sessionTokens`) are `HudElement` values controllable via `elementOrder` in config. Adjacent elements in the same `mergeGroups` group are merged onto one line when they fit.
+- Advisor label (`showAdvisor`): inlined on the project line, e.g. `Advisor: Opus 4.7`
 
 ### Context Thresholds
 

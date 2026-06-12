@@ -159,10 +159,8 @@ export function renderSessionLine(ctx) {
         const usageCompact = display?.usageCompact ?? false;
         const showResetLabel = display?.showResetLabel ?? true;
         const usageValueMode = display?.usageValue ?? 'percent';
-        if (ctx.usageData.balanceLabel) {
-            parts.push(`${label(t('label.usage'), colors)} ${ctx.usageData.balanceLabel}`);
-        }
-        else if (isLimitReached(ctx.usageData)) {
+        const hasWindowData = ctx.usageData.fiveHour !== null || ctx.usageData.sevenDay !== null;
+        if (isLimitReached(ctx.usageData)) {
             const resetTime = ctx.usageData.fiveHour === 100
                 ? formatResetTime(ctx.usageData.fiveHourResetAt, timeFormat)
                 : formatResetTime(ctx.usageData.sevenDayResetAt, timeFormat);
@@ -183,7 +181,7 @@ export function renderSessionLine(ctx) {
             const fiveHour = ctx.usageData.fiveHour;
             const sevenDay = ctx.usageData.sevenDay;
             const effectiveUsage = Math.max(fiveHour ?? 0, sevenDay ?? 0);
-            if (effectiveUsage >= usageThreshold) {
+            if ((hasWindowData || !ctx.usageData.balanceLabel) && effectiveUsage >= usageThreshold) {
                 const usageBarEnabled = display?.usageBarEnabled ?? true;
                 if (usageCompact) {
                     const fiveHourPart = fiveHour !== null
@@ -252,6 +250,14 @@ export function renderSessionLine(ctx) {
                         parts.push(`${label(t('label.usage'), colors)} ${fiveHourPart}`);
                     }
                 }
+            }
+        }
+        if (ctx.usageData.balanceLabel) {
+            if (!hasWindowData) {
+                parts.push(`${label(t('label.usage'), colors)} ${ctx.usageData.balanceLabel}`);
+            }
+            else {
+                parts.push(ctx.usageData.balanceLabel);
             }
         }
     }

@@ -20,8 +20,10 @@ export function renderUsageLine(ctx, alignLabels = false) {
         return null;
     }
     const usageLabel = progressLabel("label.usage", colors, alignLabels);
-    if (ctx.usageData.balanceLabel) {
-        return `${usageLabel} ${ctx.usageData.balanceLabel}`;
+    const balanceLabel = ctx.usageData.balanceLabel ?? null;
+    const hasWindowData = ctx.usageData.fiveHour !== null || ctx.usageData.sevenDay !== null;
+    if (balanceLabel && !hasWindowData) {
+        return `${usageLabel} ${balanceLabel}`;
     }
     const timeFormat = normalizeTimeFormat(display?.timeFormat);
     const showResetLabel = display?.showResetLabel ?? true;
@@ -34,21 +36,21 @@ export function renderUsageLine(ctx, alignLabels = false) {
             ? formatResetTime(ctx.usageData.fiveHourResetAt, limitTimeFormat)
             : formatResetTime(ctx.usageData.sevenDayResetAt, limitTimeFormat);
         if (usageCompact) {
-            return critical(`⚠ Limit${resetTime ? ` (${resetTime})` : ""}`, colors);
+            return appendBalance(critical(`⚠ Limit${resetTime ? ` (${resetTime})` : ""}`, colors), balanceLabel);
         }
         const resetSuffix = resetTime
             ? showResetLabel
                 ? ` (${t(resetsKey)} ${resetTime})`
                 : ` (${resetTime})`
             : "";
-        return `${usageLabel} ${critical(`⚠ ${t("status.limitReached")}${resetSuffix}`, colors)}`;
+        return appendBalance(`${usageLabel} ${critical(`⚠ ${t("status.limitReached")}${resetSuffix}`, colors)}`, balanceLabel);
     }
     const threshold = display?.usageThreshold ?? 0;
     const fiveHour = ctx.usageData.fiveHour;
     const sevenDay = ctx.usageData.sevenDay;
     const effectiveUsage = Math.max(fiveHour ?? 0, sevenDay ?? 0);
     if (effectiveUsage < threshold) {
-        return null;
+        return balanceLabel ? `${usageLabel} ${balanceLabel}` : null;
     }
     const sevenDayThreshold = display?.sevenDayThreshold ?? 80;
     if (usageCompact) {
@@ -59,9 +61,10 @@ export function renderUsageLine(ctx, alignLabels = false) {
             ? formatCompactWindowPart("7d", sevenDay, ctx.usageData.sevenDayResetAt, SEVEN_DAY_WINDOW_MS, timeFormat, colors, usageValueMode)
             : null;
         if (fiveHourPart && sevenDayPart) {
-            return `${fiveHourPart} | ${sevenDayPart}`;
+            return appendBalance(`${fiveHourPart} | ${sevenDayPart}`, balanceLabel);
         }
-        return fiveHourPart ?? sevenDayPart ?? null;
+        const compactLine = fiveHourPart ?? sevenDayPart;
+        return compactLine ? appendBalance(compactLine, balanceLabel) : null;
     }
     const usageBarEnabled = display?.usageBarEnabled ?? true;
     const barWidth = getAdaptiveBarWidth();
@@ -81,7 +84,7 @@ export function renderUsageLine(ctx, alignLabels = false) {
             alignLabels,
             usageValueMode,
         });
-        return `${usageLabel} ${weeklyOnlyPart}`;
+        return appendBalance(`${usageLabel} ${weeklyOnlyPart}`, balanceLabel);
     }
     const fiveHourPart = formatUsageWindowPart({
         label: "5h",
@@ -111,9 +114,12 @@ export function renderUsageLine(ctx, alignLabels = false) {
             alignLabels,
             usageValueMode,
         });
-        return `${usageLabel} ${fiveHourPart} | ${sevenDayPart}`;
+        return appendBalance(`${usageLabel} ${fiveHourPart} | ${sevenDayPart}`, balanceLabel);
     }
-    return `${usageLabel} ${fiveHourPart}`;
+    return appendBalance(`${usageLabel} ${fiveHourPart}`, balanceLabel);
+}
+function appendBalance(line, balanceLabel) {
+    return balanceLabel ? `${line} | ${balanceLabel}` : line;
 }
 function formatCompactWindowPart(windowLabel, percent, resetAt, windowMs, timeFormat, colors, usageValueMode = 'percent') {
     const usageDisplay = formatUsagePercent(percent, colors, usageValueMode);

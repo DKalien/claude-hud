@@ -21,7 +21,22 @@ export type GitBranchOverflowMode = 'truncate' | 'wrap';
 export type ModelFormatMode = 'full' | 'compact' | 'short';
 export type TimeFormatMode = 'relative' | 'absolute' | 'both' | 'elapsed' | 'elapsedAndAbsolute';
 export type CustomLinePosition = 'first' | 'last';
-export type HudElement = 'project' | 'addedDirs' | 'context' | 'usage' | 'promptCache' | 'memory' | 'environment' | 'mimo' | 'tools' | 'agents' | 'todos' | 'sessionTime' | 'sessionTokens';
+export type HudElement =
+  | 'project'
+  | 'addedDirs'
+  | 'context'
+  | 'usage'
+  | 'promptCache'
+  | 'memory'
+  | 'environment'
+  | 'mimo'
+  | 'tools'
+  | 'skills'
+  | 'mcp'
+  | 'agents'
+  | 'todos'
+  | 'sessionTime'
+  | 'sessionTokens';
 
 export type AddedDirsLayout = 'inline' | 'line';
 export type HudColorName =
@@ -63,6 +78,8 @@ export const DEFAULT_ELEMENT_ORDER: HudElement[] = [
   'environment',
   'mimo',
   'tools',
+  'skills',
+  'mcp',
   'agents',
   'todos',
   'sessionTime',
@@ -110,6 +127,8 @@ export interface HudConfig {
     showResetLabel: boolean;
     usageCompact: boolean;
     showTools: boolean;
+    showSkills: boolean;
+    showMcp: boolean;
     toolNameMaxLength: number;
     toolsMaxVisible: number;
     showAgents: boolean;
@@ -190,6 +209,8 @@ export const DEFAULT_CONFIG: HudConfig = {
     showResetLabel: true,
     usageCompact: false,
     showTools: false,
+    showSkills: false,
+    showMcp: false,
     toolNameMaxLength: 0,
     toolsMaxVisible: 4,
     showAgents: false,
@@ -579,6 +600,12 @@ export function mergeConfig(userConfig: Partial<HudConfig>): HudConfig {
     showTools: typeof migrated.display?.showTools === 'boolean'
       ? migrated.display.showTools
       : DEFAULT_CONFIG.display.showTools,
+    showSkills: typeof migrated.display?.showSkills === 'boolean'
+      ? migrated.display.showSkills
+      : DEFAULT_CONFIG.display.showSkills,
+    showMcp: typeof migrated.display?.showMcp === 'boolean'
+      ? migrated.display.showMcp
+      : DEFAULT_CONFIG.display.showMcp,
     toolNameMaxLength: validateNonNegativeInteger(
       migrated.display?.toolNameMaxLength,
       DEFAULT_CONFIG.display.toolNameMaxLength,
