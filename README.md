@@ -351,6 +351,16 @@ Example fallback snapshot:
 - `!` = modified files, `+` = added/staged, `✘` = deleted, `?` = untracked
 - Counts of 0 are omitted for cleaner display
 
+### Disabling the HUD Temporarily
+
+Set the `CLAUDE_HUD_DISABLE` environment variable to launch a session without the HUD — no need to remove the `statusLine` entry from `settings.json`:
+
+```bash
+CLAUDE_HUD_DISABLE=1 claude
+```
+
+Leaving it unset (or setting an explicit negative: `0`, `false`, `off`, `no`) keeps the HUD enabled. When disabled, the HUD exits immediately without reading the transcript or running git, so the statusline simply stays empty for that session.
+
 ### Troubleshooting
 
 **Config not applying?**
@@ -369,6 +379,7 @@ Example fallback snapshot:
 **HUD not appearing after setup?**
 - Restart Claude Code so it picks up the new statusLine config
 - On macOS, fully quit Claude Code and run `claude` again in your terminal
+- Make sure `CLAUDE_HUD_DISABLE` is not set in your environment (e.g. exported from a shell profile) — it silences the HUD entirely, including setup verification
 
 ---
 
