@@ -2812,6 +2812,7 @@ test('render expanded layout includes compactions line when enabled', () => {
   const ctx = baseContext();
   ctx.config.lineLayout = 'expanded';
   ctx.config.display.showCompactions = true;
+  ctx.config.elementOrder = [...ctx.config.elementOrder, 'compactions'];
   ctx.transcript.compactionCount = 2;
 
   const lines = captureRenderLines(ctx);
@@ -2821,6 +2822,7 @@ test('render expanded layout includes compactions line when enabled', () => {
 test('render expanded layout omits compactions line by default', () => {
   const ctx = baseContext();
   ctx.config.lineLayout = 'expanded';
+  ctx.config.elementOrder = [...ctx.config.elementOrder, 'compactions'];
   ctx.transcript.compactionCount = 2;
 
   const lines = captureRenderLines(ctx);
