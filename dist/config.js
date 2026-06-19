@@ -18,7 +18,6 @@ export const DEFAULT_ELEMENT_ORDER = [
     'todos',
     'sessionTime',
     'sessionTokens',
-    'compactions',
 ];
 export const DEFAULT_MERGE_GROUPS = [
     ['context', 'usage'],

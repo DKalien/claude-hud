@@ -16,7 +16,6 @@ import {
   renderUsageLine,
   renderMemoryLine,
   renderSessionTokensLine,
-  renderCompactionsLine,
   renderSessionTimeLine,
   renderMimoLine,
 } from './lines/index.js';
@@ -426,8 +425,8 @@ function renderElementLine(
       return renderSessionTimeLine(ctx);
     case 'sessionTokens':
       return renderSessionTokensLine(ctx);
-    case 'compactions':
-      return display?.showCompactions === true ? renderCompactionsLine(ctx) : null;
+    default:
+      return null;
   }
 }
 

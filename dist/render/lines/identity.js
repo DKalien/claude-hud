@@ -34,6 +34,13 @@ export function renderIdentityLine(ctx, alignLabels = false) {
             line += label(` (${t("format.in")}: ${input}, ${t("format.cache")}: ${cache})`, colors);
         }
     }
+    // Compaction count (opt-in, inline on context line)
+    if (display?.showCompactions) {
+        const compactions = ctx.transcript.compactionCount ?? 0;
+        if (compactions > 0) {
+            line += label(` │ ${t('label.compactions')}: ${compactions}`, colors);
+        }
+    }
     return line;
 }
 function formatTokens(n) {
