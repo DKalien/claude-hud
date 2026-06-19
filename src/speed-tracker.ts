@@ -64,14 +64,26 @@ function readCache(homeDir: string, transcriptPath: string): SpeedCache | null {
   }
 }
 
+function ensurePrivateDir(dir: string): void {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {
+    // Best-effort: some filesystems do not support POSIX modes.
+  }
+}
+
 function writeCache(homeDir: string, transcriptPath: string, cache: SpeedCache): void {
   try {
     const cachePath = getCachePath(homeDir, transcriptPath);
     const cacheDir = path.dirname(cachePath);
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
+    ensurePrivateDir(cacheDir);
+    fs.writeFileSync(cachePath, JSON.stringify(cache), { encoding: 'utf8', mode: 0o600 });
+    try {
+      fs.chmodSync(cachePath, 0o600);
+    } catch {
+      // Best-effort: cache permissions should not break speed tracking.
     }
-    fs.writeFileSync(cachePath, JSON.stringify(cache), 'utf8');
   } catch {
     // Ignore cache write failures
   }
@@ -98,10 +110,13 @@ function readFileSizeCache(cachePath: string): FileSizeCache | null {
 function writeFileSizeCache(cachePath: string, cache: FileSizeCache): void {
   try {
     const cacheDir = path.dirname(cachePath);
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
+    ensurePrivateDir(cacheDir);
+    fs.writeFileSync(cachePath, JSON.stringify(cache), { encoding: 'utf8', mode: 0o600 });
+    try {
+      fs.chmodSync(cachePath, 0o600);
+    } catch {
+      // Best-effort: cache permissions should not break speed tracking.
     }
-    fs.writeFileSync(cachePath, JSON.stringify(cache), 'utf8');
   } catch {
     // Ignore cache write failures
   }

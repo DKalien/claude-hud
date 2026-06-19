@@ -259,7 +259,7 @@ export function getUsageFromExternalSnapshot(
   now = Date.now(),
 ): UsageData | null {
   const snapshotPath = config.display.externalUsagePath;
-  if (!snapshotPath) {
+  if (!snapshotPath || !path.isAbsolute(snapshotPath)) {
     return null;
   }
 
