@@ -439,7 +439,7 @@ test('resolveSessionCost falls back to transcript estimation when native cost is
 
   assert.ok(cost, 'expected fallback estimate');
   assert.equal(cost?.source, 'estimate');
-  assert.equal(formatUsd(cost?.totalUsd ?? 0), '$5.47');
+  assert.equal(formatUsd(cost?.totalUsd ?? 0), '$1.82');
 });
 
 test('resolveSessionCost ignores native cost for provider-routed sessions', () => {
@@ -521,6 +521,31 @@ test('estimateSessionCost prices Claude Haiku 4.5 (and future 4.x minors)', () =
   assert.ok(haiku35, 'expected non-null estimate for Claude Haiku 3.5');
   // 1M input @ $0.8 + 100k output @ $4 = $0.8 + $0.4 = $1.20
   assert.equal(formatUsd(haiku35.totalUsd), '$1.20');
+});
+
+test('estimateSessionCost prices newer Opus 4 models below the Opus 4.0 and 4.1 fallback', () => {
+  const tokens = {
+    inputTokens: 1_000_000,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    outputTokens: 100_000,
+  };
+
+  const opus45 = estimateSessionCost({ model: { display_name: 'Claude Opus 4.5' } }, tokens);
+  assert.ok(opus45, 'expected non-null estimate for Claude Opus 4.5');
+  assert.equal(formatUsd(opus45.totalUsd), '$7.50');
+
+  const opus46 = estimateSessionCost({ model: { display_name: 'Claude Opus 4.6' } }, tokens);
+  assert.ok(opus46, 'expected non-null estimate for Claude Opus 4.6');
+  assert.equal(formatUsd(opus46.totalUsd), '$7.50');
+
+  const bedrockOpus46 = estimateSessionCost({ model: { display_name: 'eu.anthropic.claude-opus-4-6-v1:0' } }, tokens);
+  assert.ok(bedrockOpus46, 'expected model ID normalization to match Claude Opus 4.6');
+  assert.equal(formatUsd(bedrockOpus46.totalUsd), '$7.50');
+
+  const opus41 = estimateSessionCost({ model: { display_name: 'Claude Opus 4.1' } }, tokens);
+  assert.ok(opus41, 'expected non-null estimate for Claude Opus 4.1');
+  assert.equal(formatUsd(opus41.totalUsd), '$22.50');
 });
 
 
@@ -664,6 +689,7 @@ test('parseTranscript records the most recent compact_boundary and postTokens', 
     const result = await parseTranscript(filePath);
     assert.equal(result.lastCompactBoundaryAt?.toISOString(), '2024-01-01T00:10:00.000Z');
     assert.equal(result.lastCompactPostTokens, 12345);
+    assert.equal(result.compactionCount, 2);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -693,6 +719,7 @@ test('parseTranscript ignores compact_boundary entries without a valid timestamp
     const result = await parseTranscript(filePath);
     assert.equal(result.lastCompactBoundaryAt, undefined);
     assert.equal(result.lastCompactPostTokens, undefined);
+    assert.equal(result.compactionCount, 0);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -1348,6 +1375,11 @@ test('parseTranscript reuses cached data when transcript state is unchanged', as
   const initialLine = `${JSON.stringify({
     timestamp: '2024-01-01T00:00:00.000Z',
     message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { path: '/tmp/original.txt' } }] },
+  })}\n${JSON.stringify({
+    type: 'system',
+    subtype: 'compact_boundary',
+    timestamp: '2024-01-01T00:05:00.000Z',
+    compactMetadata: { trigger: 'auto', preTokens: 170574, postTokens: 7679 },
   })}\n`;
 
   process.env.CLAUDE_CONFIG_DIR = configDir;
@@ -1358,6 +1390,7 @@ test('parseTranscript reuses cached data when transcript state is unchanged', as
     const first = await parseTranscript(transcriptPath);
     assert.equal(first.tools.length, 1);
     assert.equal(first.tools[0].target, '/tmp/original.txt');
+    assert.equal(first.compactionCount, 1);
 
     const stat = fs.statSync(transcriptPath);
     const corrupted = '#'.repeat(stat.size);
@@ -1367,6 +1400,7 @@ test('parseTranscript reuses cached data when transcript state is unchanged', as
     const second = await parseTranscript(transcriptPath);
     assert.equal(second.tools.length, 1);
     assert.equal(second.tools[0].target, '/tmp/original.txt');
+    assert.equal(second.compactionCount, 1);
   } finally {
     restoreEnvVar('CLAUDE_CONFIG_DIR', originalConfigDir);
     await rm(dir, { recursive: true, force: true });

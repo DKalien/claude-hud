@@ -20,6 +20,7 @@ import { renderMemoryLine } from '../dist/render/lines/memory.js';
 import { renderIdentityLine } from '../dist/render/lines/identity.js';
 import { renderEnvironmentLine } from '../dist/render/lines/environment.js';
 import { renderSessionTokensLine } from '../dist/render/lines/session-tokens.js';
+import { renderCompactionsLine } from '../dist/render/lines/compactions.js';
 import { renderSessionTimeLine } from '../dist/render/lines/session-time.js';
 import { renderAdvisorLine, prettifyAdvisorId } from '../dist/render/lines/advisor.js';
 import { getContextColor, getQuotaColor } from '../dist/render/colors.js';
@@ -793,7 +794,7 @@ test('renderProjectLine falls back to an estimate when native cost is absent', (
   };
 
   const line = stripAnsi(renderProjectLine(ctx));
-  assert.ok(line.includes('Est. $5.47'), `expected fallback estimate, got: ${line}`);
+  assert.ok(line.includes('Est. $1.82'), `expected fallback estimate, got: ${line}`);
 });
 
 test('renderProjectLine hides cost for provider-routed sessions', () => {
@@ -2751,6 +2752,79 @@ test('renderSessionLine translates compact session token summary when Chinese is
   } finally {
     setLanguage('en');
   }
+});
+
+// ---------------------------------------------------------------------------
+// display.showCompactions — opt-in compaction count
+// ---------------------------------------------------------------------------
+
+test('renderCompactionsLine returns null by default', () => {
+  const ctx = baseContext();
+  ctx.transcript.compactionCount = 3;
+
+  assert.equal(renderCompactionsLine(ctx), null);
+});
+
+test('renderCompactionsLine renders the compaction count when enabled', () => {
+  const ctx = baseContext();
+  ctx.config.display.showCompactions = true;
+  ctx.transcript.compactionCount = 3;
+
+  const line = stripAnsi(renderCompactionsLine(ctx) ?? '');
+  assert.equal(line, 'Compactions: 3');
+});
+
+test('renderCompactionsLine returns null when no compaction has occurred', () => {
+  const ctx = baseContext();
+  ctx.config.display.showCompactions = true;
+  ctx.transcript.compactionCount = 0;
+
+  assert.equal(renderCompactionsLine(ctx), null);
+});
+
+test('renderSessionLine omits compaction count by default', () => {
+  const ctx = baseContext();
+  ctx.transcript.compactionCount = 3;
+
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(!line.includes('Compactions'), `compaction count should be opt-in, got: ${line}`);
+});
+
+test('renderSessionLine includes compaction count when showCompactions is enabled', () => {
+  const ctx = baseContext();
+  ctx.config.display.showCompactions = true;
+  ctx.transcript.compactionCount = 3;
+
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(line.includes('Compactions: 3'), `should include compaction count, got: ${line}`);
+});
+
+test('renderSessionLine hides compaction count when no compaction has occurred', () => {
+  const ctx = baseContext();
+  ctx.config.display.showCompactions = true;
+  ctx.transcript.compactionCount = 0;
+
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(!line.includes('Compactions'), `zero compactions should render nothing, got: ${line}`);
+});
+
+test('render expanded layout includes compactions line when enabled', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'expanded';
+  ctx.config.display.showCompactions = true;
+  ctx.transcript.compactionCount = 2;
+
+  const lines = captureRenderLines(ctx);
+  assert.ok(lines.some(line => line.includes('Compactions: 2')), `should render compactions line, got: ${lines.join(' | ')}`);
+});
+
+test('render expanded layout omits compactions line by default', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'expanded';
+  ctx.transcript.compactionCount = 2;
+
+  const lines = captureRenderLines(ctx);
+  assert.ok(!lines.some(line => line.includes('Compactions')), `compactions line should be opt-in, got: ${lines.join(' | ')}`);
 });
 
 // ---------------------------------------------------------------------------

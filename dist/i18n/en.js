@@ -13,7 +13,7 @@ export const en = {
     "label.sessionStarted": "Started",
     "label.lastReply": "Last reply",
     "label.advisor": "Advisor",
-    "label.mimo": "MIMO",
+    "label.compactions": "Compactions",
     // Status
     "status.limitReached": "Limit reached",
     "status.allTodosComplete": "All todos complete",

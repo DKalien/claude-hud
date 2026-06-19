@@ -16,6 +16,7 @@ import {
   renderUsageLine,
   renderMemoryLine,
   renderSessionTokensLine,
+  renderCompactionsLine,
   renderSessionTimeLine,
   renderMimoLine,
 } from './lines/index.js';
@@ -541,6 +542,13 @@ export function render(ctx: RenderContext): void {
   if (lineLayout === 'expanded') {
     const renderedLines = renderExpanded(ctx, terminalWidth);
     lines = renderedLines.map(({ line }) => line);
+
+    // Compaction count (opt-in, hidden until the first compaction)
+    const compactionsLine = renderCompactionsLine(ctx);
+    if (compactionsLine) {
+      lines.push(compactionsLine);
+    }
+
 
     // Advisor is rendered inline on the project line; see renderProjectLine.
 

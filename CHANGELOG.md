@@ -4,10 +4,19 @@ All notable changes to Claude HUD will be documented in this file.
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-06-12
+## [0.2.1] - 2026-06-18
+
+### Fixed
+- Require explicit `CLAUDE_HUD_ALLOW_EXTRA_CMD` opt-in before running `--extra-cmd`, and document the local command trust boundary (#619).
+- Merge missing seven-day usage from a configured external snapshot when stdin only supplies the five-hour usage window (#617).
+- Correct Opus 4.5+ local cost estimates to the current standard Anthropic rate while keeping older Opus 4.0/4.1 pricing unchanged (#625).
+
+## [0.2.0] - 2026-06-15
 
 ### Added
-- Merge upstream updates while preserving MIMO snapshot functionality (#608, #606, #604)
+- Merge upstream updates while preserving MIMO snapshot functionality
+- Add opt-in session compaction count display from reliable transcript `compact_boundary` entries (#609).
+- Add `CLAUDE_HUD_DISABLE` as a per-session environment kill switch that exits before stdin, transcript, config, or git work (#610).
 - Skills and MCP activity display elements (`showSkills` / `showMcp`)
 - Balance label display alongside stdin rate_limits
 - Fallback speed estimation via transcript file growth
@@ -20,11 +29,12 @@ All notable changes to Claude HUD will be documented in this file.
 - Render external balance with usage windows
 
 ### Changed
+- Sync `/claude-hud:configure` documentation with current display options, including compaction count, Skills, MCP, prompt cache, memory, cost, and reset-label controls (#613).
 - Updated test suite for Windows platform compatibility
 - Improved error handling and edge case coverage
 
 ### Dependencies
-- Bump `@types/node` from 25.9.1 to 25.9.2
+- Bump `@types/node` from 25.9.2 to 25.9.3 (#614).
 
 ## [0.1.1] - 2026-06-09
 

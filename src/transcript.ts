@@ -70,6 +70,7 @@ interface SerializedTranscriptData {
   sessionTokens?: SessionTokenUsage;
   lastCompactBoundaryAt?: string;
   lastCompactPostTokens?: number;
+  compactionCount?: number;
   advisorModel?: string;
 }
 
@@ -80,7 +81,7 @@ interface TranscriptCacheFile {
   data: SerializedTranscriptData;
 }
 
-const TRANSCRIPT_CACHE_VERSION = 8;
+const TRANSCRIPT_CACHE_VERSION = 9;
 const MCP_TOOL_NAME_PATTERN = /^mcp__(.+?)__(.+)$/;
 const ACTIVITY_NAME_MAX_LEN = 64;
 const DISPLAY_CONTROL_PATTERN = new RegExp(
@@ -213,6 +214,7 @@ function serializeTranscriptData(data: TranscriptData): SerializedTranscriptData
     sessionTokens: data.sessionTokens,
     lastCompactBoundaryAt: data.lastCompactBoundaryAt?.toISOString(),
     lastCompactPostTokens: data.lastCompactPostTokens,
+    compactionCount: data.compactionCount,
     advisorModel: data.advisorModel,
   };
 }
@@ -238,6 +240,9 @@ function deserializeTranscriptData(data: SerializedTranscriptData): TranscriptDa
     sessionTokens: normalizeSessionTokens(data.sessionTokens),
     lastCompactBoundaryAt: data.lastCompactBoundaryAt ? new Date(data.lastCompactBoundaryAt) : undefined,
     lastCompactPostTokens: typeof data.lastCompactPostTokens === 'number' ? data.lastCompactPostTokens : undefined,
+    compactionCount: typeof data.compactionCount === 'number' && Number.isFinite(data.compactionCount) && data.compactionCount >= 0
+      ? Math.trunc(data.compactionCount)
+      : undefined,
     advisorModel: typeof data.advisorModel === 'string' && data.advisorModel.length > 0
       ? data.advisorModel.slice(0, ADVISOR_MODEL_MAX_LEN)
       : undefined,
@@ -269,7 +274,13 @@ function readTranscriptCache(transcriptPath: string, state: TranscriptFileState)
 function writeTranscriptCache(transcriptPath: string, state: TranscriptFileState, data: TranscriptData): void {
   try {
     const cachePath = getTranscriptCachePath(transcriptPath, os.homedir());
-    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    const cacheDir = path.dirname(cachePath);
+    fs.mkdirSync(cacheDir, { recursive: true, mode: 0o700 });
+    try {
+      fs.chmodSync(cacheDir, 0o700);
+    } catch {
+      // Best-effort: some filesystems do not support POSIX modes.
+    }
     const payload: TranscriptCacheFile = {
       version: TRANSCRIPT_CACHE_VERSION,
       transcriptPath: path.resolve(transcriptPath),
@@ -277,6 +288,11 @@ function writeTranscriptCache(transcriptPath: string, state: TranscriptFileState
       data: serializeTranscriptData(data),
     };
     fs.writeFileSync(cachePath, JSON.stringify(payload), { encoding: 'utf8', mode: 0o600 });
+    try {
+      fs.chmodSync(cachePath, 0o600);
+    } catch {
+      // Best-effort: cache permissions should not break rendering.
+    }
   } catch {
     // Cache failures are non-fatal; fall back to fresh parsing next time.
   }
@@ -322,6 +338,7 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
   let latestAdvisorModel: string | undefined;
   let lastCompactBoundaryAt: Date | undefined;
   let lastCompactPostTokens: number | undefined;
+  let compactionCount = 0;
   const sessionTokens: SessionTokenUsage = {
     inputTokens: 0,
     outputTokens: 0,
@@ -388,6 +405,7 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
         if (entry.type === 'system' && entry.subtype === 'compact_boundary') {
           const ts = entry.timestamp ? new Date(entry.timestamp) : null;
           if (ts && !Number.isNaN(ts.getTime())) {
+            compactionCount += 1;
             if (!lastCompactBoundaryAt || ts.getTime() > lastCompactBoundaryAt.getTime()) {
               lastCompactBoundaryAt = ts;
               const post = entry.compactMetadata?.postTokens;
@@ -446,6 +464,7 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
   result.sessionTokens = sessionTokens;
   result.lastCompactBoundaryAt = lastCompactBoundaryAt;
   result.lastCompactPostTokens = lastCompactPostTokens;
+  result.compactionCount = compactionCount;
   result.advisorModel = latestAdvisorModel;
   if (parsedCleanly) {
     writeTranscriptCache(canonicalTranscriptPath, transcriptState, result);
