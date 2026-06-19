@@ -36,7 +36,8 @@ export type HudElement =
   | 'agents'
   | 'todos'
   | 'sessionTime'
-  | 'sessionTokens';
+  | 'sessionTokens'
+  | 'compactions';
 
 export type AddedDirsLayout = 'inline' | 'line';
 export type HudColorName =
@@ -84,6 +85,7 @@ export const DEFAULT_ELEMENT_ORDER: HudElement[] = [
   'todos',
   'sessionTime',
   'sessionTokens',
+  'compactions',
 ];
 
 export const DEFAULT_MERGE_GROUPS: HudElement[][] = [

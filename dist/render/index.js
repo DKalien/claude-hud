@@ -4,7 +4,7 @@ import { renderToolsLine } from './tools-line.js';
 import { renderSkillsLine, renderMcpLine } from './skills-mcp-line.js';
 import { renderAgentsLine } from './agents-line.js';
 import { renderTodosLine } from './todos-line.js';
-import { renderIdentityLine, renderProjectLine, renderAddedDirsLine, renderGitFilesLine, renderEnvironmentLine, renderPromptCacheLine, renderUsageLine, renderMemoryLine, renderSessionTokensLine, renderCompactionsLine, renderSessionTimeLine, } from './lines/index.js';
+import { renderIdentityLine, renderProjectLine, renderAddedDirsLine, renderGitFilesLine, renderEnvironmentLine, renderPromptCacheLine, renderUsageLine, renderMemoryLine, renderSessionTokensLine, renderCompactionsLine, renderSessionTimeLine, renderMimoLine, } from './lines/index.js';
 import { dim, RESET } from './colors.js';
 import { getTerminalWidth, UNKNOWN_TERMINAL_WIDTH } from '../utils/terminal.js';
 import { codePointCellWidth, isCjkAmbiguousWide } from './width.js';
@@ -330,6 +330,8 @@ function renderElementLine(ctx, element, options) {
             return renderMemoryLine(ctx);
         case 'environment':
             return renderEnvironmentLine(ctx);
+        case 'mimo':
+            return renderMimoLine(ctx, alignProgressLabels);
         case 'tools':
             return display?.showTools === false ? null : renderToolsLine(ctx);
         case 'skills':
@@ -342,6 +344,10 @@ function renderElementLine(ctx, element, options) {
             return display?.showTodos === false ? null : renderTodosLine(ctx);
         case 'sessionTime':
             return renderSessionTimeLine(ctx);
+        case 'sessionTokens':
+            return renderSessionTokensLine(ctx);
+        case 'compactions':
+            return display?.showCompactions === true ? renderCompactionsLine(ctx) : null;
     }
 }
 function renderCompact(ctx) {
@@ -438,13 +444,6 @@ export function render(ctx) {
     if (lineLayout === 'expanded') {
         const renderedLines = renderExpanded(ctx, terminalWidth);
         lines = renderedLines.map(({ line }) => line);
-        // Session token usage (cumulative)
-        if (ctx.config?.display?.showSessionTokens) {
-            const sessionTokensLine = renderSessionTokensLine(ctx);
-            if (sessionTokensLine) {
-                lines.push(sessionTokensLine);
-            }
-        }
         // Compaction count (opt-in, hidden until the first compaction)
         const compactionsLine = renderCompactionsLine(ctx);
         if (compactionsLine) {
