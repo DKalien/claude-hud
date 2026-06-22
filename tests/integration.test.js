@@ -68,7 +68,7 @@ test("CLI renders expected output for a basic transcript", async (t) => {
       await writeFile(expectedPath, normalized + "\n", "utf8");
       return;
     }
-    assert.equal(normalized, expected);
+    assert.equal(normalized, expected.replace(/\r\n/g, '\n'));
   } finally {
     await rm(homeDir, { recursive: true, force: true });
   }
