@@ -22,6 +22,7 @@ interface TranscriptLine {
   // set. Holds the canonical advisor model ID (e.g. "claude-opus-4-7").
   advisorModel?: string;
   message?: {
+    id?: unknown;
     content?: ContentBlock[];
     usage?: {
       input_tokens?: number;
@@ -85,9 +86,11 @@ interface TranscriptCacheFile {
   data: SerializedTranscriptData;
 }
 
-const TRANSCRIPT_CACHE_VERSION = 9;
+const TRANSCRIPT_CACHE_VERSION = 10;
 const MCP_TOOL_NAME_PATTERN = /^mcp__(.+?)__(.+)$/;
 const ACTIVITY_NAME_MAX_LEN = 64;
+const MESSAGE_ID_MAX_LEN = 128;
+const SEEN_MESSAGE_IDS_MAX = 4096;
 
 // Hard cap on the advisor model ID captured from the transcript. Real Claude
 // model IDs (e.g. "claude-haiku-4-5-20251001") fit comfortably under this; the
@@ -103,6 +106,22 @@ function normalizeTokenCount(value: unknown): number {
   }
 
   return Math.max(0, Math.trunc(value));
+}
+
+function normalizeMessageId(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 && value.length <= MESSAGE_ID_MAX_LEN
+    ? value
+    : null;
+}
+
+function rememberMessageId(seenMessageIds: Set<string>, messageId: string): void {
+  if (seenMessageIds.size >= SEEN_MESSAGE_IDS_MAX) {
+    const oldest = seenMessageIds.values().next().value;
+    if (oldest !== undefined) {
+      seenMessageIds.delete(oldest);
+    }
+  }
+  seenMessageIds.add(messageId);
 }
 
 function normalizeSessionTokens(tokens: unknown): SessionTokenUsage | undefined {
@@ -340,6 +359,7 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
     cacheCreationTokens: 0,
     cacheReadTokens: 0,
   };
+  const seenMessageIds = new Set<string>();
   let lastUsageKey: string | undefined;
 
   let parsedCleanly = false;
@@ -379,17 +399,35 @@ export async function parseTranscript(transcriptPath: string): Promise<Transcrip
         }
         // Accumulate token usage from assistant messages.
         // Claude Code can write the same API response to the transcript 2-3 times
-        // consecutively (dual-logging). Skip consecutive duplicates to avoid inflating counts.
+        // (dual-logging). Prefer the API-response-level message.id so duplicates
+        // can be removed even when another record appears between them. Only
+        // bounded string IDs are retained, and the set is capped to keep a
+        // malformed transcript from growing memory without limit. Records with
+        // missing or invalid IDs keep the previous consecutive usage-fingerprint
+        // fallback.
         if (entry.type === 'assistant' && entry.message?.usage) {
           const usage = entry.message.usage;
-          const key = `${usage.input_tokens}|${usage.output_tokens}|${usage.cache_creation_input_tokens}|${usage.cache_read_input_tokens}`;
-          if (key !== lastUsageKey) {
+          const msgId = normalizeMessageId(entry.message.id);
+          let shouldCount = false;
+
+          if (msgId !== null) {
+            lastUsageKey = undefined;
+            if (!seenMessageIds.has(msgId)) {
+              rememberMessageId(seenMessageIds, msgId);
+              shouldCount = true;
+            }
+          } else {
+            const usageKey = `${usage.input_tokens}|${usage.output_tokens}|${usage.cache_creation_input_tokens}|${usage.cache_read_input_tokens}`;
+            shouldCount = usageKey !== lastUsageKey;
+            lastUsageKey = usageKey;
+          }
+
+          if (shouldCount) {
             sessionTokens.inputTokens += normalizeTokenCount(usage.input_tokens);
             sessionTokens.outputTokens += normalizeTokenCount(usage.output_tokens);
             sessionTokens.cacheCreationTokens += normalizeTokenCount(usage.cache_creation_input_tokens);
             sessionTokens.cacheReadTokens += normalizeTokenCount(usage.cache_read_input_tokens);
           }
-          lastUsageKey = key;
         } else {
           lastUsageKey = undefined;
         }

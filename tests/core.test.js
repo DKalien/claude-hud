@@ -608,10 +608,11 @@ test('parseTranscript accumulates session token usage from assistant messages', 
   }
 });
 
-test('parseTranscript counts adjacent duplicate assistant usage once', async () => {
+test('parseTranscript deduplicates adjacent duplicate assistant usage by message.id', async () => {
   const usageEntry = {
     type: 'assistant',
     message: {
+      id: 'msg-001',
       usage: {
         input_tokens: 100,
         output_tokens: 25,
@@ -634,10 +635,11 @@ test('parseTranscript counts adjacent duplicate assistant usage once', async () 
   });
 });
 
-test('parseTranscript counts identical assistant usage separated by another line twice', async () => {
+test('parseTranscript deduplicates non-consecutive duplicate assistant usage by message.id', async () => {
   const usageEntry = {
     type: 'assistant',
     message: {
+      id: 'msg-002',
       usage: {
         input_tokens: 100,
         output_tokens: 25,
@@ -654,11 +656,115 @@ test('parseTranscript counts identical assistant usage separated by another line
   ]);
 
   assert.deepEqual(result.sessionTokens, {
+    inputTokens: 100,
+    outputTokens: 25,
+    cacheCreationTokens: 10,
+    cacheReadTokens: 5,
+  });
+});
+
+test('parseTranscript counts different message IDs with identical usage', async () => {
+  const usage = {
+    input_tokens: 100,
+    output_tokens: 25,
+    cache_creation_input_tokens: 10,
+    cache_read_input_tokens: 5,
+  };
+
+  const result = await parseTempTranscript('session-tokens-distinct-ids.jsonl', [
+    { type: 'assistant', message: { id: 'msg-a', usage } },
+    { type: 'assistant', message: { id: 'msg-b', usage } },
+  ]);
+
+  assert.deepEqual(result.sessionTokens, {
     inputTokens: 200,
     outputTokens: 50,
     cacheCreationTokens: 20,
     cacheReadTokens: 10,
   });
+});
+
+test('parseTranscript deduplicates adjacent idless usage with the legacy fingerprint fallback', async () => {
+  const entry = {
+    type: 'assistant',
+    message: {
+      usage: {
+        input_tokens: 100,
+        output_tokens: 25,
+        cache_creation_input_tokens: 10,
+        cache_read_input_tokens: 5,
+      },
+    },
+  };
+
+  const result = await parseTempTranscript('session-tokens-idless-adjacent.jsonl', [entry, entry]);
+
+  assert.deepEqual(result.sessionTokens, {
+    inputTokens: 100,
+    outputTokens: 25,
+    cacheCreationTokens: 10,
+    cacheReadTokens: 5,
+  });
+});
+
+test('parseTranscript treats malformed and oversized message IDs as idless', async () => {
+  const usage = {
+    input_tokens: 100,
+    output_tokens: 25,
+    cache_creation_input_tokens: 10,
+    cache_read_input_tokens: 5,
+  };
+  const objectIdEntry = {
+    type: 'assistant',
+    message: { id: { nested: 'payload' }, usage },
+  };
+  const oversizedIdEntry = {
+    type: 'assistant',
+    message: { id: 'x'.repeat(129), usage },
+  };
+  const nonStringIdEntry = {
+    type: 'assistant',
+    message: { id: 42, usage },
+  };
+
+  const result = await parseTempTranscript('session-tokens-invalid-ids.jsonl', [
+    objectIdEntry,
+    objectIdEntry,
+    { type: 'user', timestamp: '2024-01-01T00:00:01.000Z' },
+    oversizedIdEntry,
+    oversizedIdEntry,
+    { type: 'user', timestamp: '2024-01-01T00:00:02.000Z' },
+    nonStringIdEntry,
+    nonStringIdEntry,
+  ]);
+
+  assert.deepEqual(result.sessionTokens, {
+    inputTokens: 300,
+    outputTokens: 75,
+    cacheCreationTokens: 30,
+    cacheReadTokens: 15,
+  });
+});
+
+test('parseTranscript bounds retained message IDs', async () => {
+  const entries = Array.from({ length: 4097 }, (_, index) => ({
+    type: 'assistant',
+    message: {
+      id: `msg-${index}`,
+      usage: { input_tokens: 1 },
+    },
+  }));
+  entries.push({
+    type: 'assistant',
+    message: {
+      id: 'msg-0',
+      usage: { input_tokens: 1 },
+    },
+  });
+
+  const result = await parseTempTranscript('session-tokens-bounded-message-ids.jsonl', entries);
+
+  assert.equal(result.sessionTokens?.inputTokens, 4098);
 });
 
 test('parseTranscript records the most recent compact_boundary and postTokens', async () => {
