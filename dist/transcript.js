@@ -6,8 +6,9 @@ import { createHash } from 'node:crypto';
 import { getHudPluginDir } from './claude-config-dir.js';
 import { createDebug } from './debug.js';
 import { sanitizeDisplayText } from './utils/sanitize.js';
+import { sanitizeTranscriptModel } from './model-source.js';
 const debug = createDebug('transcript');
-const TRANSCRIPT_CACHE_VERSION = 11;
+const TRANSCRIPT_CACHE_VERSION = 12;
 const MCP_TOOL_NAME_PATTERN = /^mcp__(.+?)__(.+)$/;
 const ACTIVITY_NAME_MAX_LEN = 64;
 const MESSAGE_ID_MAX_LEN = 128;
@@ -133,6 +134,7 @@ function serializeTranscriptData(data) {
         compactionCount: data.compactionCount,
         advisorModel: data.advisorModel,
         ultracodeActive: data.ultracodeActive,
+        lastAssistantModel: sanitizeTranscriptModel(data.lastAssistantModel),
     };
 }
 function deserializeTranscriptData(data) {
@@ -163,6 +165,7 @@ function deserializeTranscriptData(data) {
             ? data.advisorModel.slice(0, ADVISOR_MODEL_MAX_LEN)
             : undefined,
         ultracodeActive: typeof data.ultracodeActive === 'boolean' ? data.ultracodeActive : undefined,
+        lastAssistantModel: sanitizeTranscriptModel(data.lastAssistantModel),
     };
 }
 function readTranscriptCache(transcriptPath, state) {
@@ -311,6 +314,15 @@ export async function parseTranscript(transcriptPath) {
                     const effortCommandMatch = entry.message.content.match(/^<local-command-stdout>Set effort level to (\w+)/);
                     if (effortCommandMatch) {
                         latestUltracodeActive = effortCommandMatch[1].toLowerCase() === 'ultracode';
+                    }
+                }
+                // Capture the actual model from the assistant message's `model` field.
+                // This reflects what the API actually served, which may differ from the
+                // model Claude Code thinks it's using (e.g. proxy redirect via cc-switch).
+                if (entry.type === 'assistant') {
+                    const transcriptModel = sanitizeTranscriptModel(entry.message?.model);
+                    if (transcriptModel) {
+                        result.lastAssistantModel = transcriptModel;
                     }
                 }
                 // Accumulate token usage from assistant messages.

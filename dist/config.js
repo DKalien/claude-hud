@@ -91,6 +91,7 @@ export const DEFAULT_CONFIG = {
         externalUsageFreshnessMs: 300000,
         modelFormat: 'full',
         modelOverride: '',
+        modelSource: 'stdin',
         showProvider: false,
         providerName: '',
         customLine: '',
@@ -482,6 +483,9 @@ export function mergeConfig(userConfig) {
         modelOverride: typeof migrated.display?.modelOverride === 'string'
             ? migrated.display.modelOverride.slice(0, 80)
             : DEFAULT_CONFIG.display.modelOverride,
+        modelSource: ['auto', 'stdin', 'transcript'].includes(migrated.display?.modelSource)
+            ? migrated.display.modelSource
+            : DEFAULT_CONFIG.display.modelSource,
         showProvider: typeof migrated.display?.showProvider === 'boolean'
             ? migrated.display.showProvider
             : DEFAULT_CONFIG.display.showProvider,

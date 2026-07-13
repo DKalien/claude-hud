@@ -119,6 +119,7 @@ export interface TranscriptData {
     compactionCount?: number;
     advisorModel?: string;
     ultracodeActive?: boolean;
+    lastAssistantModel?: string;
 }
 export interface RenderContext {
     stdin: StdinData;

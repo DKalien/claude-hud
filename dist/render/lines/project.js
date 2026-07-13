@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { getModelName, formatModelName } from '../../stdin.js';
+import { formatModelName, resolveModelName } from '../../stdin.js';
 import { getOutputSpeed } from '../../speed-tracker.js';
 import { git as gitColor, gitBranch as gitBranchColor, warning as warningColor, critical as criticalColor, label, model as modelColor, project as projectColor, red, green, yellow, dim, custom as customColor } from '../colors.js';
 import { t } from '../../i18n/index.js';
@@ -29,7 +29,7 @@ export function renderProjectLine(ctx) {
         parts.push(customColor(customLine, colors));
     }
     if (display?.showModel !== false) {
-        const model = formatModelName(getModelName(ctx.stdin), ctx.config?.display?.modelFormat, ctx.config?.display?.modelOverride);
+        const model = formatModelName(resolveModelName(ctx.stdin, ctx.transcript, ctx.config?.display?.modelSource), ctx.config?.display?.modelFormat, ctx.config?.display?.modelOverride);
         const modelDisplay = formatModelDisplay(model, ctx);
         parts.push(modelColor(`[${modelDisplay}]`, colors));
     }
