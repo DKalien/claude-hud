@@ -1,5 +1,5 @@
 import { isLimitReached } from '../types.js';
-import { getContextPercent, getBufferedPercent, getModelName, formatModelName, shouldHideUsage } from '../stdin.js';
+import { getContextPercent, getBufferedPercent, formatModelName, resolveModelName, shouldHideUsage } from '../stdin.js';
 import { getOutputSpeed } from '../speed-tracker.js';
 import { coloredBar, critical, git as gitColor, gitBranch as gitBranchColor, label, model as modelColor, project as projectColor, getContextColor, getQuotaColor, quotaBar, custom as customColor, RESET } from './colors.js';
 import { getAdaptiveBarWidth } from '../utils/terminal.js';
@@ -10,15 +10,17 @@ import { renderAdvisorLine } from './lines/advisor.js';
 import { t } from '../i18n/index.js';
 import { formatResetTime } from './format-reset-time.js';
 import { formatTokens, formatContextValue } from '../utils/format.js';
+import { formatAuthSegment } from '../auth.js';
 import { createDebug } from '../debug.js';
 import { formatModelDisplay } from './model-display.js';
-const debug = createDebug('context');
+import { formatSessionTokenSummary } from './lines/session-tokens.js';
+const debug = createDebug('session-line');
 /**
  * Renders the full session line (model + context bar + project + git + counts + usage + duration).
  * Used for compact layout mode.
  */
 export function renderSessionLine(ctx) {
-    const model = formatModelName(getModelName(ctx.stdin), ctx.config?.display?.modelFormat, ctx.config?.display?.modelOverride);
+    const model = formatModelName(resolveModelName(ctx.stdin, ctx.transcript, ctx.config?.display?.modelSource), ctx.config?.display?.modelFormat, ctx.config?.display?.modelOverride);
     const autoCompactWindow = ctx.config?.display?.autoCompactWindow ?? null;
     const rawPercent = getContextPercent(ctx.stdin, autoCompactWindow);
     const bufferedPercent = getBufferedPercent(ctx.stdin, autoCompactWindow);
@@ -131,7 +133,7 @@ export function renderSessionLine(ctx) {
         parts.push(label(`CC v${ctx.claudeCodeVersion}`, colors));
     }
     // Config counts (respects environmentThreshold)
-    if (display?.showConfigCounts !== false) {
+    if (display?.showConfigCounts === true) {
         const totalCounts = ctx.claudeMdCount + ctx.rulesCount + ctx.mcpCount + ctx.hooksCount;
         const envThreshold = display?.environmentThreshold ?? 0;
         if (totalCounts > 0 && totalCounts >= envThreshold) {
@@ -258,10 +260,9 @@ export function renderSessionLine(ctx) {
     }
     // Session token usage (cumulative)
     if (display?.showSessionTokens && ctx.transcript.sessionTokens) {
-        const st = ctx.transcript.sessionTokens;
-        const total = st.inputTokens + st.outputTokens + st.cacheCreationTokens + st.cacheReadTokens;
-        if (total > 0) {
-            parts.push(label(`${t('format.tok')}: ${formatTokens(total)} (${t('format.in')}: ${formatTokens(st.inputTokens)}, ${t('format.out')}: ${formatTokens(st.outputTokens)})`, colors));
+        const summary = formatSessionTokenSummary(ctx.transcript.sessionTokens, `${t('format.tok')}:`);
+        if (summary) {
+            parts.push(label(summary, colors));
         }
     }
     // Compaction count from transcript compact_boundary entries (opt-in,
@@ -279,7 +280,7 @@ export function renderSessionLine(ctx) {
             parts.push(advisorLine);
         }
     }
-    if (display?.showDuration !== false && ctx.sessionDuration) {
+    if (display?.showDuration === true && ctx.sessionDuration) {
         parts.push(label(`⏱️  ${ctx.sessionDuration}`, colors));
     }
     const sessionTimeLine = renderSessionTimeLine(ctx);
@@ -302,6 +303,10 @@ export function renderSessionLine(ctx) {
     }
     if (ctx.extraLabel) {
         parts.push(label(ctx.extraLabel, colors));
+    }
+    const authSegment = formatAuthSegment(ctx.authInfo, display);
+    if (authSegment) {
+        parts.push(label(authSegment, colors));
     }
     if (customLine && customLinePosition === 'last') {
         parts.push(customColor(customLine, colors));

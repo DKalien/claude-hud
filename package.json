@@ -1,6 +1,6 @@
 {
   "name": "claude-hud",
-  "version": "0.3.0.1",
+  "version": "0.4.1-fork.1",
   "description": "Real-time statusline HUD for Claude Code",
   "type": "module",
   "main": "dist/index.js",
@@ -23,14 +23,14 @@
     "statusline",
     "hud"
   ],
-  "author": "Jarrod Watts (original), DKalien (fork)",
+  "author": "Jarrod Watts",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.1.1",
     "c8": "^11.0.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }

@@ -1,5 +1,6 @@
 import type { HudConfig } from './config.js';
 import type { GitStatus } from './git.js';
+import type { AuthInfo } from './auth.js';
 export interface StdinData {
     transcript_path?: string;
     cwd?: string;
@@ -117,6 +118,8 @@ export interface TranscriptData {
     lastCompactPostTokens?: number;
     compactionCount?: number;
     advisorModel?: string;
+    ultracodeActive?: boolean;
+    lastAssistantModel?: string;
 }
 export interface MimoSnapshot {
     updated_at: string | number;
@@ -147,5 +150,6 @@ export interface RenderContext {
     claudeCodeVersion?: string;
     effortLevel?: string;
     effortSymbol?: string;
+    authInfo?: AuthInfo | null;
 }
 //# sourceMappingURL=types.d.ts.map

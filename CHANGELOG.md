@@ -4,14 +4,42 @@ All notable changes to Claude HUD will be documented in this file.
 
 ## [Unreleased]
 
-## [0.3.0.1] - 2026-06-22
+## [0.4.1-fork.1] - 2026-07-14
 
 ### Changed
-- Merge upstream v0.3.0 while preserving MIMO Token Plan integration
-- Update fork version to 0.3.0.1
+- Merge upstream v0.4.1 while preserving MIMO Token Plan integration and compactions display.
+- Update fork version to 0.4.1-fork.1.
+
+## [0.4.1] - 2026-07-14
 
 ### Fixed
-- Windows platform compatibility for integration tests (line ending normalization)
+- Restore the default 80% weekly-usage threshold when the setting is omitted or invalid, preventing the weekly segment from appearing at 0% while preserving the existing usage and environment defaults (#662).
+
+## [0.4.0] - 2026-07-13
+
+### Added
+- Add opt-in routed-provider cost display for Bedrock and Vertex sessions, with explicit native-versus-estimated labeling (#648).
+- Add opt-in authentication method and account display with terminal-safe truncation and active API-key precedence (#652).
+- Add Traditional Chinese (`zh-Hant` / `zh-TW`) across configuration, onboarding, and rendered labels (#645).
+- Add opt-in transcript and automatic model-source modes for proxy users, with bounded terminal-safe model labels (#643).
+
+### Changed
+- Show ultracode sessions as `ultracode(xhigh)` from transcript attachment and `/effort` signals (#640).
+- Move locale-specific time layout into named interpolation patterns so translations control word order and spacing (#647).
+- Keep effort suffixes attached to model names and enforce opt-in render guards consistently (#650).
+
+### Fixed
+- Deduplicate repeated assistant usage by bounded message IDs while preserving the idless transcript fallback (#646).
+- Show cache creation and cache read tokens in compact session-token summaries (#653).
+- Count symlinked rule files and directories with cycle-safe, bounded traversal and cache invalidation (#644).
+- Handle non-ASCII checkout paths correctly in direct-entrypoint tests (#655).
+
+### Removed
+- Drop the `ps`-based parent-process `--effort` fallback (#471); the effort label now comes solely from Claude Code's stdin, which carries the level directly.
+
+### Dependencies
+- Bump `@types/node` from 25.9.3 to 26.1.1 (#657).
+- Bump TypeScript from 6.0.3 to 7.0.2 (#656).
 
 ## [0.3.0] - 2026-06-19
 
@@ -35,24 +63,11 @@ All notable changes to Claude HUD will be documented in this file.
 ## [0.2.0] - 2026-06-15
 
 ### Added
-- Merge upstream updates while preserving MIMO snapshot functionality
 - Add opt-in session compaction count display from reliable transcript `compact_boundary` entries (#609).
 - Add `CLAUDE_HUD_DISABLE` as a per-session environment kill switch that exits before stdin, transcript, config, or git work (#610).
-- Skills and MCP activity display elements (`showSkills` / `showMcp`)
-- Balance label display alongside stdin rate_limits
-- Fallback speed estimation via transcript file growth
-
-### Fixed
-- Windows platform compatibility for tests (HOME/USERPROFILE, file permissions, path handling)
-- i18n: translate "token" as "词元" instead of "令牌" in Simplified Chinese
-- Stabilize setup and bash tool targets
-- Harden skills and MCP activity rendering
-- Render external balance with usage windows
 
 ### Changed
 - Sync `/claude-hud:configure` documentation with current display options, including compaction count, Skills, MCP, prompt cache, memory, cost, and reset-label controls (#613).
-- Updated test suite for Windows platform compatibility
-- Improved error handling and edge case coverage
 
 ### Dependencies
 - Bump `@types/node` from 25.9.2 to 25.9.3 (#614).

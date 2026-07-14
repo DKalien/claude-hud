@@ -534,6 +534,18 @@ test('renderSessionLine applies modelOverride', () => {
   assert.ok(!line.includes('Claude Opus'));
 });
 
+test('renderSessionLine renders a sanitized opt-in transcript model', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus' };
+  ctx.transcript.lastAssistantModel = 'proxy-\x1b[31mred\x1b[0m\x1b]8;;https://evil.test\x07link\x1b]8;;\x07\u202E';
+  ctx.config.display.modelSource = 'transcript';
+
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(line.includes('[proxy-redlink]'), `got: ${line}`);
+  assert.ok(!line.includes('Claude Opus'));
+  assert.doesNotMatch(line, /[\x1b\u202E]/u);
+});
+
 test('renderProjectLine includes session name when showSessionName is true', () => {
   const ctx = baseContext();
   ctx.stdin.cwd = '/tmp/my-project';
@@ -676,6 +688,18 @@ test('renderProjectLine modelOverride takes precedence over modelFormat', () => 
   assert.ok(line.includes('My Custom Model'));
 });
 
+test('renderProjectLine renders a sanitized opt-in auto transcript model', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus' };
+  ctx.transcript.lastAssistantModel = 'glm-\x1b[31mred\x1b[0m\x1b]8;;https://evil.test\x07link\x1b]8;;\x07\u202E';
+  ctx.config.display.modelSource = 'auto';
+
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(line.includes('[glm-redlink]'), `got: ${line}`);
+  assert.ok(!line.includes('Claude Opus'));
+  assert.doesNotMatch(line, /[\x1b\u202E]/u);
+});
+
 test('renderProjectLine shows custom provider before the model when showProvider is on', () => {
   const ctx = baseContext();
   ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
@@ -742,6 +766,86 @@ test('renderSessionLine keeps the legacy trailing provider label when showProvid
   } finally {
     delete process.env.CLAUDE_CODE_USE_BEDROCK;
   }
+});
+
+test('renderProjectLine keeps effort attached to the model before a trailing provider', () => {
+  process.env.CLAUDE_CODE_USE_BEDROCK = '1';
+  try {
+    const ctx = baseContext();
+    ctx.config.lineLayout = 'expanded';
+    ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+    ctx.effortLevel = 'xhigh';
+    ctx.effortSymbol = '◕';
+
+    const line = stripAnsi(renderProjectLine(ctx) ?? '');
+    assert.ok(line.includes('[Claude Opus 4.6 ◕ xhigh | Bedrock]'), `got: ${line}`);
+    assert.ok(!line.includes('Bedrock ◕ xhigh'), `effort must not attach to provider: ${line}`);
+  } finally {
+    delete process.env.CLAUDE_CODE_USE_BEDROCK;
+  }
+});
+
+test('renderSessionLine keeps effort attached to the model before a trailing provider', () => {
+  process.env.CLAUDE_CODE_USE_BEDROCK = '1';
+  try {
+    const ctx = baseContext();
+    ctx.config.lineLayout = 'compact';
+    ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+    ctx.effortLevel = 'xhigh';
+    ctx.effortSymbol = '◕';
+
+    const line = stripAnsi(renderSessionLine(ctx));
+    assert.ok(line.includes('[Claude Opus 4.6 ◕ xhigh | Bedrock]'), `got: ${line}`);
+    assert.ok(!line.includes('Bedrock ◕ xhigh'), `effort must not attach to provider: ${line}`);
+  } finally {
+    delete process.env.CLAUDE_CODE_USE_BEDROCK;
+  }
+});
+
+test('renderProjectLine appends the effort label after the model when no provider is shown', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+  ctx.effortLevel = 'ultracode(xhigh)';
+  ctx.effortSymbol = '◕';
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(line.includes('[Claude Opus 4.6 ◕ ultracode(xhigh)]'), `got: ${line}`);
+});
+
+test('renderProjectLine keeps the effort label inside the model core with a custom provider', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+  ctx.config.display.showProvider = true;
+  ctx.config.display.providerName = 'MyProxy';
+  ctx.effortLevel = 'ultracode(xhigh)';
+  ctx.effortSymbol = '◕';
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(line.includes('[MyProxy | Claude Opus 4.6 ◕ ultracode(xhigh)]'), `got: ${line}`);
+});
+
+test('renderProjectLine keeps ultracode effort attached to the model before a trailing provider', () => {
+  process.env.CLAUDE_CODE_USE_BEDROCK = '1';
+  try {
+    const ctx = baseContext();
+    ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+    ctx.effortLevel = 'ultracode(xhigh)';
+    ctx.effortSymbol = '◕';
+    const line = stripAnsi(renderProjectLine(ctx) ?? '');
+    assert.ok(line.includes('[Claude Opus 4.6 ◕ ultracode(xhigh) | Bedrock]'), `got: ${line}`);
+    assert.ok(!line.includes('Bedrock ◕ ultracode'), `effort must not attach to provider: ${line}`);
+  } finally {
+    delete process.env.CLAUDE_CODE_USE_BEDROCK;
+  }
+});
+
+test('renderSessionLine composes the effort label with a custom provider (compact layout)', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+  ctx.config.display.showProvider = true;
+  ctx.config.display.providerName = 'MyProxy';
+  ctx.effortLevel = 'ultracode(xhigh)';
+  ctx.effortSymbol = '◕';
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(line.includes('[MyProxy | Claude Opus 4.6 ◕ ultracode(xhigh)]'), `got: ${line}`);
 });
 
 test('renderProjectLine uses configurable element colors', () => {
@@ -831,6 +935,32 @@ test('renderEnvironmentLine appends output style after config counts', () => {
   assert.ok(line?.includes('style: learning'));
 });
 
+test('renderEnvironmentLine treats missing showConfigCounts as disabled in expanded layout', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'expanded';
+  delete ctx.config.display.showConfigCounts;
+  ctx.claudeMdCount = 2;
+  ctx.rulesCount = 1;
+  ctx.mcpCount = 3;
+  ctx.hooksCount = 4;
+
+  assert.equal(renderEnvironmentLine(ctx), null);
+});
+
+test('renderSessionLine treats missing showConfigCounts as disabled in compact layout', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'compact';
+  delete ctx.config.display.showConfigCounts;
+  ctx.claudeMdCount = 2;
+  ctx.rulesCount = 1;
+  ctx.mcpCount = 3;
+  ctx.hooksCount = 4;
+
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(!line.includes('CLAUDE.md'), `config counts must remain opt-in: ${line}`);
+  assert.ok(!line.includes('MCPs'), `config counts must remain opt-in: ${line}`);
+});
+
 test('renderProjectLine includes duration when showDuration is true', () => {
   const ctx = baseContext();
   ctx.stdin.cwd = '/tmp/my-project';
@@ -887,6 +1017,52 @@ test('renderProjectLine hides cost for provider-routed sessions', () => {
   }
 });
 
+test('renderProjectLine shows the estimate for provider-routed sessions when showRoutedCost is on', () => {
+  const ctx = baseContext();
+  ctx.stdin.cwd = '/tmp/my-project';
+  ctx.stdin.model = { id: 'anthropic.claude-sonnet-4-20250514-v1:0' };
+  ctx.config.display.showCost = true;
+  ctx.config.display.showRoutedCost = true;
+  ctx.stdin.cost = { total_cost_usd: 0 };
+  ctx.transcript.sessionTokens = {
+    inputTokens: 100000,
+    cacheCreationTokens: 10000,
+    cacheReadTokens: 20000,
+    outputTokens: 50000,
+  };
+
+  const line = stripAnsi(renderProjectLine(ctx));
+  assert.ok(line.includes('Est. $1.09'), `expected routed estimate, got: ${line}`);
+});
+
+test('renderProjectLine shows native cost for provider-routed sessions when showRoutedCost is on', () => {
+  const ctx = baseContext();
+  ctx.stdin.cwd = '/tmp/my-project';
+  ctx.stdin.model = { id: 'anthropic.claude-sonnet-4-20250514-v1:0' };
+  ctx.config.display.showCost = true;
+  ctx.config.display.showRoutedCost = true;
+  ctx.stdin.cost = { total_cost_usd: 2.54 };
+
+  const line = stripAnsi(renderProjectLine(ctx));
+  assert.ok(line.includes('Cost $2.54'), `expected native routed cost, got: ${line}`);
+});
+
+test('renderProjectLine keeps routed cost hidden when showRoutedCost is on but showCost is off', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { id: 'anthropic.claude-sonnet-4-20250514-v1:0' };
+  ctx.config.display.showCost = false;
+  ctx.config.display.showRoutedCost = true;
+  ctx.transcript.sessionTokens = {
+    inputTokens: 100000,
+    cacheCreationTokens: 10000,
+    cacheReadTokens: 20000,
+    outputTokens: 50000,
+  };
+
+  const line = stripAnsi(renderProjectLine(ctx));
+  assert.ok(!line.includes('Est.') && !line.includes('Cost '), `cost should stay hidden without showCost, got: ${line}`);
+});
+
 test('renderProjectLine translates native cost label when Chinese is enabled', () => {
   const ctx = baseContext();
   ctx.stdin.cwd = '/tmp/my-project';
@@ -909,6 +1085,26 @@ test('renderProjectLine omits duration when showDuration is false', () => {
   ctx.sessionDuration = '12m 34s';
   const line = renderProjectLine(ctx);
   assert.ok(!line?.includes('12m 34s'), 'should not include session duration when disabled');
+});
+
+test('renderProjectLine treats missing showDuration as disabled in expanded layout', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'expanded';
+  delete ctx.config.display.showDuration;
+  ctx.sessionDuration = '12m 34s';
+
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(!line.includes('12m 34s'), `duration must remain opt-in: ${line}`);
+});
+
+test('renderSessionLine treats missing showDuration as disabled in compact layout', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'compact';
+  delete ctx.config.display.showDuration;
+  ctx.sessionDuration = '12m 34s';
+
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(!line.includes('12m 34s'), `duration must remain opt-in: ${line}`);
 });
 
 test('renderProjectLine includes speed when showSpeed is true and speed is available', async () => {
@@ -1014,6 +1210,27 @@ test('renderProjectLine can give git its own segment for wrapping', () => {
   ctx.config.gitStatus.branchOverflow = 'wrap';
   const line = stripAnsi(renderProjectLine(ctx) ?? '');
   assert.ok(line.includes('my-project │ git:(feature/add-auth)'), 'git should render as a separate segment');
+});
+
+test('renderSessionLine shows the enabled auth segment in compact layout', () => {
+  const ctx = baseContext();
+  ctx.authInfo = { method: 'Claude Max 20x', user: 'someone.long' };
+  ctx.config.display.showAuth = true;
+  ctx.config.display.showAuthUser = true;
+  ctx.config.display.authUserLength = 8;
+
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(line.includes('Claude Max 20x · someone.…'));
+});
+
+test('renderProjectLine shows the enabled auth segment in expanded layout', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'expanded';
+  ctx.authInfo = { method: 'API Key', user: null };
+  ctx.config.display.showAuth = true;
+
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(line.includes('API Key'));
 });
 
 test('renderToolsLine renders running and completed tools', () => {
@@ -1688,6 +1905,25 @@ test('renderSessionLine displays usage percentages (7d hidden when low)', () => 
   assert.ok(line.includes('6%'), 'should include 5h percentage');
 });
 
+test('default merged config hides low weekly usage in compact and expanded layouts', () => {
+  const ctx = baseContext();
+  ctx.config = mergeConfig({});
+  ctx.usageData = {
+    planName: 'Pro',
+    fiveHour: 10,
+    sevenDay: 0,
+    fiveHourResetAt: null,
+    sevenDayResetAt: null,
+  };
+
+  const compactLine = stripAnsi(renderSessionLine(ctx));
+  const expandedLine = stripAnsi(renderUsageLine(ctx) ?? '');
+  assert.ok(compactLine.includes('Usage'), `compact usage should include the 5h window: ${compactLine}`);
+  assert.ok(!compactLine.includes('Weekly'), `compact usage should hide low weekly usage: ${compactLine}`);
+  assert.ok(expandedLine.includes('Usage'), `expanded usage should include the 5h window: ${expandedLine}`);
+  assert.ok(!expandedLine.includes('Weekly'), `expanded usage should hide low weekly usage: ${expandedLine}`);
+});
+
 test('renderSessionLine displays external balance labels', () => {
   const ctx = baseContext();
   ctx.usageData = {
@@ -1838,7 +2074,7 @@ test('renderSessionLine shows 7d reset countdown in text-only mode', () => {
 
 test('renderSessionLine respects sevenDayThreshold override', () => {
   const ctx = baseContext();
-  ctx.config.display.sevenDayThreshold = 0;
+  ctx.config = mergeConfig({ display: { sevenDayThreshold: 0 } });
   ctx.usageData = {
     planName: 'Pro',
     fiveHour: 10,
@@ -2800,6 +3036,23 @@ test('renderSessionLine includes compact session token summary when enabled', ()
   assert.ok(line.includes('tok: 2k (in: 2k, out: 250)'), 'should include compact token summary');
 });
 
+test('renderSessionLine includes compact cache token details when present', () => {
+  const ctx = baseContext();
+  ctx.config.display.showSessionTokens = true;
+  ctx.transcript.sessionTokens = {
+    inputTokens: 7000,
+    outputTokens: 28000,
+    cacheCreationTokens: 12000000,
+    cacheReadTokens: 800000,
+  };
+
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(
+    line.includes('tok: 12.8M (in: 7k, out: 28k, cache: 12.8M)'),
+    `unexpected compact token summary: ${line}`,
+  );
+});
+
 test('renderSessionLine translates compact session token summary when Chinese is enabled', () => {
   const ctx = baseContext();
   ctx.config.display.showSessionTokens = true;
@@ -2813,7 +3066,7 @@ test('renderSessionLine translates compact session token summary when Chinese is
   setLanguage('zh');
   try {
     const line = stripAnsi(renderSessionLine(ctx));
-    assert.ok(line.includes('词元: 2k (输入: 2k, 输出: 250)'), `unexpected zh compact token summary: ${line}`);
+    assert.ok(line.includes('词元: 2k (输入: 2k, 输出: 250, 缓存: 500)'), `unexpected zh compact token summary: ${line}`);
     assert.ok(!line.includes('tok:'), `unexpected bare English token label in zh output: ${line}`);
     assert.ok(!line.includes('in:'), `unexpected bare English input label in zh output: ${line}`);
     assert.ok(!line.includes('out:'), `unexpected bare English output label in zh output: ${line}`);
