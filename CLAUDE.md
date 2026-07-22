@@ -79,7 +79,10 @@ src/
 ├── debug.ts             # Debug logging
 ├── extra-cmd.ts         # Run an optional user command for a custom label
 ├── version.ts           # Plugin version handling
-├── i18n/                # HUD label translations (en, zh-Hans)
+├── auth.ts              # Auth method + account display
+├── jj.ts                # Jujutsu VCS status
+├── model-source.ts      # Model source tracking (stdin/transcript/auto)
+├── i18n/                # HUD label translations (en, zh-Hans, zh-Hant)
 ├── utils/               # Shared helpers
 ├── types.ts             # TypeScript interfaces
 └── render/
@@ -92,6 +95,10 @@ src/
     ├── colors.ts            # ANSI color helpers
     ├── width.ts             # Terminal width / CJK-aware measurement
     ├── format-reset-time.ts # Usage reset time formatting
+    ├── first-line-order.ts  # Configurable first-line segment ordering
+    ├── project-path.ts      # Project path rendering
+    ├── model-display.ts     # Model display formatting
+    ├── vcs-status.ts        # VCS status (Git/Jujutsu)
     └── lines/
         ├── index.ts         # Barrel export
         ├── project.ts       # Model bracket + project + git (+ advisor)
@@ -105,6 +112,7 @@ src/
         ├── session-time.ts  # Session duration / timestamps
         ├── session-tokens.ts # Session token totals
         ├── added-dirs.ts    # /add-dir workspace directories
+        ├── compactions.ts   # Session compaction count
         ├── mimo.ts          # MIMO usage display (fork-specific)
         └── label-align.ts   # Label column alignment
 ```
@@ -146,4 +154,4 @@ Note: `statusLine` is NOT a valid plugin.json field. It must be configured in se
 ## Dependencies
 
 - **Runtime**: Node.js 18+ or Bun
-- **Build**: TypeScript 5, ES2022 target, NodeNext modules
+- **Build**: TypeScript 7, ES2022 target, NodeNext modules

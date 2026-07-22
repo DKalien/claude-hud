@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This file provides guidance to Codex when working with this repository.
+This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-Codex HUD is a Codex plugin that displays a real-time multi-line statusline. It shows context health, tool activity, agent status, and todo progress.
+Claude HUD is a Claude Code plugin that displays a real-time multi-line statusline. It shows context health, tool activity, agent status, and todo progress.
 
 ## Build Commands
 
@@ -21,15 +21,15 @@ echo '{"model":{"display_name":"Opus"},"context_window":{"current_usage":{"input
 ### Data Flow
 
 ```
-Codex → stdin JSON → parse → render lines → stdout → Codex displays
+Claude Code → stdin JSON → parse → render lines → stdout → Claude Code displays
            ↘ transcript_path → parse JSONL → tools/agents/todos
 ```
 
-**Key insight**: The statusline is invoked every ~300ms by Codex. Each invocation:
+**Key insight**: The statusline is invoked by Claude Code after each interaction (new assistant message, `/compact` finishing, permission-mode changes, vim-mode toggles), debounced at 300ms — not on a fixed polling loop. Each invocation:
 1. Receives JSON via stdin (model, context, tokens - native accurate data)
 2. Parses the transcript JSONL file for tools, agents, and todos
 3. Renders multi-line output to stdout
-4. Codex displays all lines
+4. Claude Code displays all lines
 
 ### Data Sources
 
@@ -47,11 +47,11 @@ Codex → stdin JSON → parse → render lines → stdout → Codex displays
 - `Task` calls → agent info
 
 **From config files**:
-- MCP count from `~/.Codex/settings.json` (mcpServers)
-- Hooks count from `~/.Codex/settings.json` (hooks)
-- Rules count from AGENTS.md files
+- MCP count from `~/.claude/settings.json` (mcpServers)
+- Hooks count from `~/.claude/settings.json` (hooks)
+- Rules count from CLAUDE.md files
 
-**From Codex stdin rate limits**:
+**From Claude Code stdin rate limits**:
 - `rate_limits.five_hour.used_percentage` - 5-hour subscriber usage percentage
 - `rate_limits.five_hour.resets_at` - 5-hour reset timestamp
 - `rate_limits.seven_day.used_percentage` - 7-day subscriber usage percentage
@@ -62,7 +62,7 @@ Codex → stdin JSON → parse → render lines → stdout → Codex displays
 ```
 src/
 ├── index.ts             # Entry point
-├── stdin.ts             # Parse Codex's JSON input
+├── stdin.ts             # Parse Claude's JSON input
 ├── transcript.ts        # Parse transcript JSONL
 ├── config-reader.ts     # Read MCP/rules configs
 ├── config.ts            # Load/validate user config
@@ -74,12 +74,15 @@ src/
 ├── speed-tracker.ts     # Output speed tracking
 ├── context-cache.ts     # Context/usage caching across invocations
 ├── memory.ts            # System memory stats
-├── Codex-config-dir.ts # Resolve the Codex config directory
+├── claude-config-dir.ts # Resolve the Claude config directory
 ├── constants.ts         # Shared constants
 ├── debug.ts             # Debug logging
 ├── extra-cmd.ts         # Run an optional user command for a custom label
 ├── version.ts           # Plugin version handling
-├── i18n/                # HUD label translations (en, zh-Hans)
+├── auth.ts              # Auth method + account display
+├── jj.ts                # Jujutsu VCS status
+├── model-source.ts      # Model source tracking (stdin/transcript/auto)
+├── i18n/                # HUD label translations (en, zh-Hans, zh-Hant)
 ├── utils/               # Shared helpers
 ├── types.ts             # TypeScript interfaces
 └── render/
@@ -92,6 +95,10 @@ src/
     ├── colors.ts            # ANSI color helpers
     ├── width.ts             # Terminal width / CJK-aware measurement
     ├── format-reset-time.ts # Usage reset time formatting
+    ├── first-line-order.ts  # Configurable first-line segment ordering
+    ├── project-path.ts      # Project path rendering
+    ├── model-display.ts     # Model display formatting
+    ├── vcs-status.ts        # VCS status (Git/Jujutsu)
     └── lines/
         ├── index.ts         # Barrel export
         ├── project.ts       # Model bracket + project + git (+ advisor)
@@ -105,6 +112,7 @@ src/
         ├── session-time.ts  # Session duration / timestamps
         ├── session-tokens.ts # Session token totals
         ├── added-dirs.ts    # /add-dir workspace directories
+        ├── compactions.ts   # Session compaction count
         ├── mimo.ts          # MIMO usage display (fork-specific)
         └── label-align.ts   # Label column alignment
 ```
@@ -121,7 +129,7 @@ Lines 1-2 always shown. Additional lines are opt-in via config:
 - Skills/MCP lines (`showSkills` / `showMcp`): active Skill invocations and MCP servers; when the Skills line is enabled, Skill-tool entries are suppressed from the tools line
 - Agents line (`showAgents`): ◐ explore [haiku]: Finding auth code
 - Todos line (`showTodos`): ▸ Fix authentication bug (2/5)
-- Environment line (`showConfigCounts`): 2 AGENTS.md | 4 rules
+- Environment line (`showConfigCounts`): 2 CLAUDE.md | 4 rules
 - MIMO line (`showMimoUsage`): MIMO plan usage with progress bar (fork-specific)
 - Advisor label (`showAdvisor`): inlined on the project line, e.g. `Advisor: Opus 4.7`
 
@@ -135,9 +143,9 @@ Lines 1-2 always shown. Additional lines are opt-in via config:
 
 ## Plugin Configuration
 
-The plugin manifest is in `.Codex-plugin/plugin.json` (metadata only - name, description, version, author).
+The plugin manifest is in `.claude-plugin/plugin.json` (metadata only - name, description, version, author).
 
-**StatusLine configuration** must be added to the user's `~/.Codex/settings.json` via `/Codex-hud:setup`.
+**StatusLine configuration** must be added to the user's `~/.claude/settings.json` via `/claude-hud:setup`.
 
 The setup command adds an auto-updating command that finds the latest installed version at runtime.
 
@@ -146,4 +154,4 @@ Note: `statusLine` is NOT a valid plugin.json field. It must be configured in se
 ## Dependencies
 
 - **Runtime**: Node.js 18+ or Bun
-- **Build**: TypeScript 5, ES2022 target, NodeNext modules
+- **Build**: TypeScript 7, ES2022 target, NodeNext modules
