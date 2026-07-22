@@ -4,6 +4,13 @@ All notable changes to Claude HUD will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0.1] - 2026-07-22
+
+### Changed
+- Merge upstream v0.6.0 while preserving MIMO Token Plan integration
+- Adapt renderMimoLine to upstream ProgressLabelOptions signature
+- Add MIMO label key to zh-Hant locale
+
 ## [0.6.0] - 2026-07-20
 
 ### Added
