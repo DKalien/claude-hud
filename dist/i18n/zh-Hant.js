@@ -13,6 +13,7 @@ export const zhHant = {
     "label.sessionStarted": "開始",
     "label.lastReply": "上次回覆",
     "label.advisor": "顧問",
+    "label.mimo": "MIMO",
     "label.compactions": "壓縮次數",
     "label.mimo": "MIMO",
     // Status
