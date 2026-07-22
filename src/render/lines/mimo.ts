@@ -2,11 +2,11 @@ import type { RenderContext } from '../../types.js';
 import { critical, label, getQuotaColor, quotaBar, RESET } from '../colors.js';
 import { getAdaptiveBarWidth } from '../../utils/terminal.js';
 import { t } from '../../i18n/index.js';
-import { progressLabel } from './label-align.js';
+import { progressLabel, type ProgressLabelOptions } from './label-align.js';
 
 export function renderMimoLine(
   ctx: RenderContext,
-  alignLabels = false,
+  labelOptions: ProgressLabelOptions = {},
 ): string | null {
   const display = ctx.config?.display;
   const colors = ctx.config?.colors;
@@ -20,7 +20,7 @@ export function renderMimoLine(
     return null;
   }
 
-  const mimoLabel = progressLabel('label.mimo', colors, alignLabels);
+  const mimoLabel = progressLabel('label.mimo', colors, labelOptions);
 
   if (snapshot.error) {
     return `${mimoLabel} ${critical(snapshot.error, colors)}`;

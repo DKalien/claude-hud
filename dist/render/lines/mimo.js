@@ -1,7 +1,7 @@
 import { critical, label, getQuotaColor, quotaBar, RESET } from '../colors.js';
 import { getAdaptiveBarWidth } from '../../utils/terminal.js';
 import { progressLabel } from './label-align.js';
-export function renderMimoLine(ctx, alignLabels = false) {
+export function renderMimoLine(ctx, labelOptions = {}) {
     const display = ctx.config?.display;
     const colors = ctx.config?.colors;
     if (display?.showMimoUsage === false) {
@@ -11,7 +11,7 @@ export function renderMimoLine(ctx, alignLabels = false) {
     if (!snapshot) {
         return null;
     }
-    const mimoLabel = progressLabel('label.mimo', colors, alignLabels);
+    const mimoLabel = progressLabel('label.mimo', colors, labelOptions);
     if (snapshot.error) {
         return `${mimoLabel} ${critical(snapshot.error, colors)}`;
     }

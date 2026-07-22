@@ -1,1 +1,1 @@
-{"version":3,"file":"mimo.d.ts","sourceRoot":"","sources":["../../../src/render/lines/mimo.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,gBAAgB,CAAC;AAMpD,wBAAgB,cAAc,CAC5B,GAAG,EAAE,aAAa,EAClB,WAAW,UAAQ,GAClB,MAAM,GAAG,IAAI,CA8Cf"}
+{"version":3,"file":"mimo.d.ts","sourceRoot":"","sources":["../../../src/render/lines/mimo.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,gBAAgB,CAAC;AAIpD,OAAO,EAAiB,KAAK,oBAAoB,EAAE,MAAM,kBAAkB,CAAC;AAE5E,wBAAgB,cAAc,CAC5B,GAAG,EAAE,aAAa,EAClB,YAAY,GAAE,oBAAyB,GACtC,MAAM,GAAG,IAAI,CA8Cf"}

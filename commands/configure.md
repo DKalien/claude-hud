@@ -18,15 +18,17 @@ enabled — toggle them by editing `config.json` directly if needed:
 - Context bar `████░░░░░░ 45%`
 
 Advanced settings such as `colors.*`, `pathLevels`, `maxWidth`, `forceMaxWidth`,
-`elementOrder`, `display.mergeGroups`, `display.timeFormat`, `display.contextValue`,
-`display.modelFormat`, `display.modelOverride`, `display.showProvider`,
+`elementOrder`, `projectLineOrder`, `display.mergeGroups`, `display.timeFormat`, `display.contextValue`,
+`display.modelFormat`, `display.modelOverride`, `display.modelSource`, `display.showProvider`,
 `display.providerName`, `display.autocompactBuffer`,
 `display.autoCompactWindow`, `display.promptCacheTtlSeconds`,
 `display.usageThreshold`, `display.sevenDayThreshold`,
 `display.environmentThreshold`, `display.contextWarningThreshold`,
-`display.contextCriticalThreshold`, `display.advisorOverride`, and the
-`display.externalUsage*` keys are preserved when saving but are not edited by
-this guided flow.
+`display.contextCriticalThreshold`, `display.advisorOverride`,
+`display.showAuth`, `display.showAuthUser`, `display.authUserLength`, and the
+`display.externalUsage*` keys, plus `jjStatus.showDirty` and
+`jjStatus.showConflicts`, are preserved when saving but are not edited by this
+guided flow.
 
 ---
 
@@ -66,9 +68,10 @@ Questions: **Turn Off → Turn On → Git Style → Layout/Reset → Language �
 - multiSelect: false
 - options:
   - "English (Recommended)" - Default, simplest onboarding path
-  - "中文" - Show HUD labels and status text in Chinese
+  - "简体中文" - Show HUD labels and status text in Simplified Chinese
+  - "繁體中文" - Show HUD labels and status text in Traditional Chinese
 
-Save as `language: "en"` or `language: "zh-Hans"`.
+Save as `language: "en"`, `language: "zh-Hans"`, or `language: "zh-Hant"`.
 
 ### Q4: Turn Off (based on chosen preset)
 - header: "Turn Off"
@@ -81,6 +84,7 @@ Save as `language: "en"` or `language: "zh-Hans"`.
   - "Project name" - my-project path display
   - "Added directories" - +repo +shared workspace directories from /add-dir
   - "Git status" - git:(main*) branch indicator
+  - "Jujutsu status" - jj:(bookmark*) opt-in indicator
   - "Config counts" - 2 CLAUDE.md | 4 rules
   - "Token breakdown" - (in: 45k, cache: 12k)
   - "Output speed" - out: 42.1 tok/s
@@ -90,9 +94,10 @@ Save as `language: "en"` or `language: "zh-Hans"`.
   - "Session duration" - ⏱️ 5m
   - "Session name" - fix-auth-bug (session slug or custom title)
   - "Session tokens" - Tokens 12.8M (in: 7k, out: 28k, cache: 12.8M)
-  - "Reasoning level" - ◑ high (low/medium/high/xhigh/max effort)
+  - "Reasoning level" - ◑ high (low/medium/high/xhigh/max, or ultracode(xhigh))
   - "Output style" - style: explanatory (current output style name)
   - "Session cost" - 💰 $0.42
+  - "Routed provider cost" - 💰 $0.42 for Bedrock/Vertex (only if Session cost is on)
   - "Skills activity" - active skills count
   - "MCP status" - MCP server status
   - "Memory usage" - process memory footprint
@@ -136,11 +141,13 @@ If user chooses "Enter custom text", use AskUserQuestion to get their text. Save
   - "Project name" - my-project path display
   - "Added directories" - +repo +shared workspace directories from /add-dir
   - "Git status" - git:(main*) branch indicator
+  - "Jujutsu status" - jj:(bookmark*) opt-in indicator
   - "Session name" - fix-auth-bug (session slug or custom title)
   - "Session tokens" - Tokens 12.8M (in: 7k, out: 28k, cache: 12.8M)
-  - "Reasoning level" - ◑ high (low/medium/high/xhigh/max effort)
+  - "Reasoning level" - ◑ high (low/medium/high/xhigh/max, or ultracode(xhigh))
   - "Output style" - style: explanatory (current output style name)
   - "Session cost" - 💰 $0.42
+  - "Routed provider cost" - 💰 $0.42 for Bedrock/Vertex (only if Session cost is on)
   - "Skills activity" - active skills count
   - "MCP status" - MCP server status
   - "Memory usage" - process memory footprint
@@ -168,12 +175,14 @@ Info items (Counts, Tokens, Usage, Speed, Duration) can be turned off via "Reset
   - "Usage reset label" - show or hide the `resets in` prefix
   - "Compact usage" - 5h: 25% (1h 30m) shorter format (only if usageCompact is false)
   - "Added directories" - +repo +shared workspace directories from /add-dir
+  - "Jujutsu status" - jj:(bookmark*) opt-in indicator
   - "Session name" - fix-auth-bug (session slug or custom title)
   - "Session tokens" - Tokens 12.8M (in: 7k, out: 28k, cache: 12.8M)
   - "Session duration" - ⏱️ 5m
-  - "Reasoning level" - ◑ high (low/medium/high/xhigh/max effort)
+  - "Reasoning level" - ◑ high (low/medium/high/xhigh/max, or ultracode(xhigh))
   - "Output style" - style: explanatory (current output style name)
   - "Session cost" - 💰 $0.42
+  - "Routed provider cost" - 💰 $0.42 for Bedrock/Vertex (only if Session cost is on)
   - "Skills activity" - active skills count
   - "MCP status" - MCP server status
   - "Memory usage" - process memory footprint
@@ -207,16 +216,18 @@ Info items (Counts, Tokens, Usage, Speed, Duration) can be turned off via "Reset
 
 ### Q5: Language
 - header: "Language"
-- question: "Update HUD label language? (current: '{English or 中文}')"
+- question: "Update HUD label language? (current: '{English, 简体中文, or 繁體中文}')"
 - multiSelect: false
 - options:
   - "Keep current" - No change
   - "English (Recommended)" - Use English HUD labels
-  - "中文" - Use Chinese HUD labels
+  - "简体中文" - Use Simplified Chinese HUD labels
+  - "繁體中文" - Use Traditional Chinese HUD labels
 
 If user chooses "Keep current", leave `language` unchanged.
 If user chooses "English (Recommended)", save `language: "en"`.
-If user chooses "中文", save `language: "zh-Hans"`.
+If user chooses "简体中文", save `language: "zh-Hans"`.
+If user chooses "繁體中文", save `language: "zh-Hant"`.
 
 ### Q6: Custom Line (optional)
 - header: "Custom Line"
@@ -238,16 +249,19 @@ If user chooses "Remove", set `display.customLine` to `""` in config.
 - Activity: Tools ON, Skills ON, MCP ON, Agents ON, Todos ON
 - Info: Added Dirs ON, Counts ON, Tokens ON, Usage ON, Reset Label ON, Cost ON, Duration ON, Session Name ON, Session Tokens ON, Reasoning Level ON, Output Style ON, Memory ON, Prompt Cache ON, CC Version ON, Compactions ON, Advisor ON
 - Git: ON (with dirty indicator, no ahead/behind)
+- Jujutsu: ON (opted in, with dirty and conflict indicators)
 
 **Essential** (activity + git):
 - Activity: Tools ON, Agents ON, Todos ON
 - Info: Counts OFF, Tokens OFF, Usage OFF, Duration ON, Session Name OFF, Session Tokens OFF
 - Git: ON (with dirty indicator)
+- Jujutsu: OFF
 
 **Minimal** (core only — this is the default):
 - Activity: Tools OFF, Agents OFF, Todos OFF
 - Info: Counts OFF, Tokens OFF, Usage OFF, Duration OFF, Session Name OFF, Session Tokens OFF
 - Git: ON (with dirty indicator)
+- Jujutsu: OFF
 
 ---
 
@@ -266,7 +280,8 @@ If user chooses "Remove", set `display.customLine` to `""` in config.
 | Option | Config |
 |--------|--------|
 | English (Recommended) | `language: "en"` |
-| 中文 | `language: "zh-Hans"` |
+| 简体中文 | `language: "zh-Hans"` |
+| 繁體中文 | `language: "zh-Hant"` |
 
 ---
 
@@ -295,16 +310,20 @@ If user chooses "Remove", set `display.customLine` to `""` in config.
 | Project name | `display.showProject` |
 | Added directories | `display.showAddedDirs` (layout via `display.addedDirsLayout`) |
 | Git status | `gitStatus.enabled` |
+| Jujutsu status | `jjStatus.enabled` |
 | Config counts | `display.showConfigCounts` |
 | Token breakdown | `display.showTokenBreakdown` |
 | Output speed | `display.showSpeed` |
 | Session cost | `display.showCost` |
+| Routed provider cost | `display.showRoutedCost` |
 | Usage limits | `display.showUsage` |
 | Usage bar style | `display.usageBarEnabled` |
 | Compact usage | `display.usageCompact` |
 | Usage value | `display.usageValue` |
 | Usage reset label | `display.showResetLabel` |
 | Session name | `display.showSessionName` |
+| Auth method | `display.showAuth` (plan label, e.g. "Claude Max 20x", own segment at end of first line) |
+| Auth user | `display.showAuthUser` (login account, truncated to `display.authUserLength` chars, 0 = full) |
 | Session duration | `display.showDuration` |
 | Session tokens | `display.showSessionTokens` |
 | Session start date | `display.showSessionStartDate` |
