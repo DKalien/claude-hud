@@ -4,6 +4,37 @@ All notable changes to Claude HUD will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0-fork.1] - 2026-08-09
+
+### Changed
+- Sync upstream v0.7.0 through commit `6f065f2` while preserving fork-specific MIMO and compactions behavior.
+- Retain DKalien fork attribution, repository links, Windows compatibility fixes, DIM color 245, and the AGENTS.md to CLAUDE.md link.
+
+## [0.7.0] - 2026-08-07
+
+### Added
+- Read bounded model-scoped usage windows from an optional external snapshot while preserving explicit empty stdin snapshots (#690).
+- Configure wall-clock hour cycles and optional seconds without changing the locale-driven default (#692).
+- Right-align an ordered suffix of merged expanded rows with `display.rightAlign` (#693).
+- Price Claude Opus 5, Sonnet 5, and Fable 5 in local cost estimates, including Sonnet's time-limited introductory rate (#694).
+- Detect the official MiniMax Anthropic-compatible endpoints and estimate MiniMax M2.7 token/cache cost without guessing MiniMax M3's request-tier pricing (#696).
+- Surface bounded MCP server failures when MCP activity or config counts are enabled, clearing a failure after a later successful result (#699).
+- Cache derived opt-in authentication labels against the source profile identity (#700).
+
+### Fixed
+- Prevent short-lived Windows statusline processes from orphaning their owned Git process trees, with bounded output, timeouts, and non-interactive read-only Git behavior (#703).
+- Silence `/dev/tty` probe failures during setup command execution (#686).
+- Treat Unicode variation selectors as zero-width in terminal-cell calculations (#687).
+- Count completed and progressive assistant token records after zero-value transcript placeholders (#698).
+- Preserve configured element order in right-aligned rows and cap hostile terminal/config widths (#693).
+
+### Security
+- Sanitize, bound, cache-version, and opt-in MCP error names before terminal rendering (#699).
+- Validate and version derived-auth cache entries, reject symlink/oversized reads, use private permissions, and write through unique exclusive temporary files (#700).
+
+### Dependencies
+- Update the development-only `@types/node` package from 26.1.1 to 26.1.2 (#697).
+
 ## [0.6.0.1] - 2026-07-22
 
 ### Changed

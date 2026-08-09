@@ -17,7 +17,6 @@ export const zhHant: Messages = {
   "label.advisor": "顧問",
   "label.mimo": "MIMO",
   "label.compactions": "壓縮次數",
-  "label.mimo": "MIMO",
 
   // Status
   "status.limitReached": "已達上限",

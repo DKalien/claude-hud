@@ -1103,7 +1103,9 @@ test('label color overrides apply across shared secondary text surfaces', () => 
   assert.ok(renderUsageLine(ctx)?.includes(`${expected}Usage\x1b[0m`));
   assert.ok(renderUsageLine(ctx, true)?.includes(`${expected}Usage  \x1b[0m`));
   assert.ok(renderUsageLine(ctx, { align: true })?.includes(`${expected}Usage  \x1b[0m`));
-  assert.ok(renderEnvironmentLine(ctx)?.includes(`${expected}2 CLAUDE.md | 1 rules\x1b[0m`));
+  const environmentLine = renderEnvironmentLine(ctx);
+  assert.ok(environmentLine?.includes(`${expected}2 CLAUDE.md\x1b[0m`));
+  assert.ok(environmentLine?.includes(`${expected}1 rules\x1b[0m`));
   assert.ok(renderMemoryLine({ ...ctx, config: { ...ctx.config, lineLayout: 'expanded', display: { ...ctx.config.display, showMemoryUsage: true } } })?.includes(`${expected}Approx RAM\x1b[0m`));
   assert.ok(renderToolsLine(ctx)?.includes(`${expected}: src/index.ts\x1b[0m`));
   assert.ok(renderSkillsLine(ctx)?.includes(`${expected}(1)\x1b[0m`));
@@ -1130,6 +1132,71 @@ test('renderEnvironmentLine appends output style after config counts', () => {
   const line = renderEnvironmentLine(ctx);
   assert.ok(line?.includes('1 CLAUDE.md'));
   assert.ok(line?.includes('style: learning'));
+});
+
+test('renderEnvironmentLine flags MCP servers that returned errors', () => {
+  const ctx = baseContext();
+  ctx.config.display.showConfigCounts = true;
+  ctx.mcpCount = 5;
+  ctx.transcript.mcpErrors = ['github', 'tenable'];
+
+  const line = renderEnvironmentLine(ctx);
+  assert.ok(line?.includes('5 MCPs'), 'count should still render');
+  assert.ok(line?.includes('github, tenable'), 'failing servers should be named');
+  assert.ok(line?.includes('\x1b[31m'), 'error segment should be red');
+});
+
+test('renderEnvironmentLine collapses more than three failing MCPs to a count', () => {
+  const ctx = baseContext();
+  ctx.config.display.showConfigCounts = true;
+  ctx.mcpCount = 9;
+  ctx.transcript.mcpErrors = ['a', 'b', 'c', 'd', 'e'];
+
+  const line = renderEnvironmentLine(ctx);
+  assert.ok(line?.includes('a, b, c +2'), `expected overflow count, got: ${line}`);
+});
+
+// A live fault must not be hidden behind an unrelated display toggle: the
+// config counts are ambient detail people switch off, an erroring server is not.
+test('renderEnvironmentLine preserves the default layout when MCP displays are off', () => {
+  const ctx = baseContext();
+  ctx.config.display.showConfigCounts = false;
+  ctx.mcpCount = 5;
+  ctx.transcript.mcpErrors = ['airlock'];
+
+  ctx.config.display.showMcp = false;
+
+  assert.equal(renderEnvironmentLine(ctx), null);
+});
+
+test('renderEnvironmentLine surfaces MCP errors when the MCP display is enabled', () => {
+  const ctx = baseContext();
+  ctx.config.display.showConfigCounts = false;
+  ctx.config.display.showMcp = true;
+  ctx.transcript.mcpErrors = ['airlock'];
+
+  const line = renderEnvironmentLine(ctx);
+  assert.ok(line?.includes('airlock'));
+});
+
+test('renderEnvironmentLine sanitizes direct MCP errors and uses the critical theme', () => {
+  const ctx = baseContext();
+  ctx.config.display.showMcp = true;
+  ctx.config.colors.critical = 'magenta';
+  ctx.transcript.mcpErrors = ['safe\x1b]8;;https://evil.test\x07link\x1b]8;;\x07\u202E'];
+
+  const line = renderEnvironmentLine(ctx);
+  assert.ok(line?.includes('\x1b[35m'));
+  assert.doesNotMatch(line ?? '', /evil\.test|\u202E/u);
+});
+
+test('renderEnvironmentLine stays null when nothing is enabled and no MCP errors', () => {
+  const ctx = baseContext();
+  ctx.config.display.showConfigCounts = false;
+  ctx.mcpCount = 5;
+  ctx.transcript.mcpErrors = [];
+
+  assert.equal(renderEnvironmentLine(ctx), null);
 });
 
 test('renderEnvironmentLine treats missing showConfigCounts as disabled in expanded layout', () => {
@@ -3989,4 +4056,83 @@ test('full project paths stay sanitized when projectLineOrder moves them first',
   assert.ok(!expanded.includes('evil.example'), `OSC payload leaked into expanded output: ${expanded}`);
   assert.doesNotMatch(compact, /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/i);
   assert.doesNotMatch(expanded, /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/i);
+});
+
+function usageDataFixture() {
+  return {
+    planName: 'Team',
+    fiveHour: 25,
+    sevenDay: 10,
+    fiveHourResetAt: null,
+    sevenDayResetAt: null,
+  };
+}
+
+function rightAlignContext() {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'expanded';
+  ctx.config.elementOrder = ['project', 'context', 'usage'];
+  ctx.config.display.mergeGroups = [['project', 'context', 'usage']];
+  ctx.config.display.showResetLabel = false;
+  ctx.usageData = usageDataFixture();
+  return ctx;
+}
+
+test('render expanded layout right-aligns configured merge-group elements to the terminal edge', () => {
+  const ctx = rightAlignContext();
+  ctx.config.display.rightAlign = ['context', 'usage'];
+
+  const lines = withTerminal(120, () => captureRenderLines(ctx));
+  const row = lines.find(line => line.includes('Context') && line.includes('Usage'));
+
+  assert.ok(row, 'expected a combined project/context/usage row');
+  assert.equal([...row].length, 120, `row should fill the terminal width, got: ${row}`);
+  assert.match(row, / {2,}Context/, `right half should be padded away from the left half, got: ${row}`);
+});
+
+test('render expanded layout treats a middle right-align entry as an ordered suffix anchor', () => {
+  const ctx = rightAlignContext();
+  ctx.config.display.rightAlign = ['context'];
+
+  const lines = withTerminal(120, () => captureRenderLines(ctx));
+  const row = lines.find(line => line.includes('Context') && line.includes('Usage'));
+
+  assert.ok(row, 'expected a combined project/context/usage row');
+  assert.ok(row.indexOf('Context') < row.indexOf('Usage'), `element order must be preserved: ${row}`);
+  assert.equal([...row].length, 120, `row should fill the terminal width, got: ${row}`);
+});
+
+test('render expanded layout keeps the separator join when no element is right-aligned', () => {
+  const ctx = rightAlignContext();
+
+  const lines = withTerminal(120, () => captureRenderLines(ctx));
+  const row = lines.find(line => line.includes('Context') && line.includes('Usage'));
+
+  assert.ok(row, 'expected a combined project/context/usage row');
+  assert.ok([...row].length < 120, `row should not be padded, got: ${row}`);
+  assert.match(row, / │ Context/, `got: ${row}`);
+});
+
+test('render expanded layout falls back to the separator join when every element is right-aligned', () => {
+  const ctx = rightAlignContext();
+  ctx.config.display.rightAlign = ['project', 'context', 'usage'];
+
+  const lines = withTerminal(120, () => captureRenderLines(ctx));
+  const row = lines.find(line => line.includes('Context') && line.includes('Usage'));
+
+  assert.ok(row, 'expected a combined project/context/usage row');
+  assert.ok([...row].length < 120, `row should not be padded, got: ${row}`);
+  assert.match(row, / │ Context/, `got: ${row}`);
+});
+
+test('render expanded layout still stacks a right-aligned group that does not fit', () => {
+  const ctx = rightAlignContext();
+  ctx.config.display.rightAlign = ['context', 'usage'];
+
+  const lines = withTerminal(35, () => captureRenderLines(ctx));
+  const combined = lines.find(line => line.includes('Context') && line.includes('Usage'));
+  const contextLine = lines.find(line => line.includes('Context') && !line.includes('Usage'));
+
+  assert.equal(combined, undefined, 'narrow terminals should stack instead of combining');
+  assert.ok(contextLine, 'expected a standalone context line');
 });

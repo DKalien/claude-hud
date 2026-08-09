@@ -137,6 +137,26 @@ test('renderUsageLine compact mode with both windows', () => {
   assert.ok(line.includes('7d:'));
 });
 
+test('renderUsageLine applies wall-clock options to generic compact windows', () => {
+  const ctx = baseContext();
+  const resetAt = new Date();
+  resetAt.setDate(resetAt.getDate() + 1);
+  resetAt.setHours(19, 23, 45, 0);
+  ctx.config.display.usageCompact = true;
+  ctx.config.display.timeFormat = 'absolute';
+  ctx.config.display.hourCycle = 'h23';
+  ctx.config.display.showClockSeconds = true;
+  ctx.usageData.fiveHour = 60;
+  ctx.usageData.sevenDay = 85;
+  ctx.usageData.fiveHourResetAt = resetAt;
+  ctx.usageData.sevenDayResetAt = resetAt;
+
+  const line = stripAnsi(renderUsageLine(ctx) ?? '');
+  assert.match(line, /5h:.*19:23:45/);
+  assert.match(line, /7d:.*19:23:45/);
+  assert.doesNotMatch(line, /AM|PM/i);
+});
+
 test('renderUsageLine compact mode returns null when no window data qualifies', () => {
   const ctx = baseContext();
   ctx.config.display.usageCompact = true;

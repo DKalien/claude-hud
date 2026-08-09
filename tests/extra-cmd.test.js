@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitize, parseExtraCmdArg, runExtraCmd, isExtraCmdAllowed } from '../dist/extra-cmd.js';
 
+const nodeOutputCommand = (output) =>
+  `${JSON.stringify(process.execPath)} -e "process.stdout.write(Buffer.from('${Buffer.from(output).toString('base64')}', 'base64'))"`;
+
 // ============================================================================
 // sanitize() tests
 // ============================================================================
@@ -124,12 +127,12 @@ test('runExtraCmd returns label from valid JSON output', async () => {
 });
 
 test('runExtraCmd returns the last non-empty line from plain output', async () => {
-  const result = await runExtraCmd('printf "setup\\nnot json\\n"');
+  const result = await runExtraCmd(nodeOutputCommand('setup\nnot json\n'));
   assert.equal(result, 'not json');
 });
 
 test('runExtraCmd sanitizes terminal escapes from plain output', async () => {
-  const result = await runExtraCmd('printf "plain\\033[31mred\\033[0m\\n"');
+  const result = await runExtraCmd(nodeOutputCommand('plain\x1b[31mred\x1b[0m\n'));
   assert.equal(result, 'plainred');
 });
 
