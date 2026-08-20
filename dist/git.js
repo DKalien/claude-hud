@@ -74,7 +74,10 @@ export async function getGitStatus(cwd) {
         // Build GitHub branch URL from remote
         let branchUrl;
         try {
-            const { stdout: remoteOut } = await runner.run(['remote', 'get-url', 'origin'], 1000);
+            const { stdout: remoteOut } = await runner.run(
+            // Read the configured URL directly; `remote get-url` applies global
+            // insteadOf rewrites and can hide a GitHub origin behind a proxy URL.
+            ['config', '--get', 'remote.origin.url'], 1000);
             const remote = remoteOut.trim();
             const httpsBase = remote
                 .replace(/^git@github\.com:/, 'https://github.com/')

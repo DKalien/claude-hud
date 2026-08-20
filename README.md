@@ -157,9 +157,20 @@ After choosing a preset, you can turn individual elements on or off.
 ### Manual Configuration
 
 Edit `~/.claude/plugins/claude-hud/config.json` directly for advanced settings such as `colors.*`,
-`pathLevels`, `maxWidth`, threshold overrides, `display.timeFormat`, and `display.promptCacheTtlSeconds`. Running `/claude-hud:configure`
+`pathLevels`, `maxWidth`, threshold overrides, `display.timeFormat`, `display.hourCycle`, and `display.promptCacheTtlSeconds`. Running `/claude-hud:configure`
 preserves those manual settings while still letting you change `language`, layout, and the common
 guided toggles.
+
+If you run several Claude config directories via `CLAUDE_CONFIG_DIR` and symlink `plugins/` to a
+shared location, `plugins/claude-hud/config.json` is the same physical file for all of them. Put
+per-directory settings in `$CLAUDE_CONFIG_DIR/claude-hud.json` instead - it uses the same shape,
+only needs the keys it changes, and is layered on top of the shared config at load time:
+
+For example, put this in `~/.config/claude/work/claude-hud.json`:
+
+```json
+{ "display": { "customLine": "Work Team" } }
+```
 
 Simplified and Traditional Chinese HUD labels are available as explicit opt-ins. English stays the default unless you choose a Chinese locale in `/claude-hud:configure` or set `language` in config. The `zh` alias maps to Simplified Chinese, and `zh-TW` maps to Traditional Chinese. Guided config writes the canonical `zh-Hans` or `zh-Hant` value.
 
@@ -231,10 +242,11 @@ Simplified and Traditional Chinese HUD labels are available as explicit opt-ins.
 | `display.showLastResponseAt` | boolean | false | Show how long ago the last assistant response was written |
 | `display.showCompactions` | boolean | false | Show how many context compactions (manual `/compact` or auto) have occurred this session, counted from transcript `compact_boundary` entries, e.g. `Compactions: 2`. Hidden until the first compaction |
 | `display.showEffortLevel` | boolean | false | Show the current reasoning effort in the model badge. Ultracode renders as `ultracode(xhigh)`, detected from the session transcript so it tracks `/effort` changes made at runtime |
+| `display.effortFormat` | `full` \| `symbol` \| `text` | `full` | How the effort renders when `display.showEffortLevel` is on: symbol and level text (`◑ high`), symbol only (`◑`), or level text only (`high`). Ultracode keeps the full `◕ ultracode(xhigh)` form under `symbol` so the marker is not lost, and levels without a known symbol fall back to the level text |
 | `display.showClaudeCodeVersion` | boolean | false | Show the installed Claude Code version, e.g. `CC v2.1.81` |
 | `display.showMemoryUsage` | boolean | false | Show an approximate system RAM usage line in expanded layout |
-| `display.showPromptCache` | boolean | false | Show a prompt cache countdown based on the last assistant response timestamp in the transcript |
-| `display.promptCacheTtlSeconds` | number | `300` | Prompt cache TTL in seconds. Keep the default for Pro, set `3600` for Max |
+| `display.showPromptCache` | boolean | false | Show the wall-clock time the session's prompt cache expires, read from the transcript |
+| `display.promptCacheTtlSeconds` | number | `300` | Compatibility fallback used only when the transcript has not reported a 5-minute or 1-hour cache tier |
 | `colors.context` | color value | `green` | Base color for the context bar and context percentage |
 | `colors.usage` | color value | `brightBlue` | Base color for usage bars and percentages below warning thresholds |
 | `colors.warning` | color value | `yellow` | Warning color for context thresholds and usage warning text |
@@ -259,7 +271,15 @@ Supported color names: `dim`, `red`, `green`, `yellow`, `magenta`, `cyan`, `brig
 
 Official MiniMax Anthropic-compatible endpoints receive a `MiniMax` provider label. MiniMax M2.7 can use its published token and cache prices for local estimates; M3 pricing depends on each request's context tier, which cumulative session tokens cannot safely infer, so ClaudeHUD does not guess an M3 estimate.
 
-`display.showPromptCache` is fully opt-in. When enabled, ClaudeHUD looks at the timestamp of the last assistant response in the local transcript and shows a live countdown until the prompt cache expires. The default TTL is 5 minutes (`300` seconds). Set `display.promptCacheTtlSeconds` to `3600` if you want a 1-hour Max-style window. If the transcript does not have an assistant timestamp yet, the cache element stays hidden.
+`display.showPromptCache` is fully opt-in. When enabled, ClaudeHUD shows **the wall-clock time the session's prompt cache expires** (e.g. `Cache ⏱ at 14:30`), or `expired` once that time has passed. It follows `display.hourCycle` and `display.showClockSeconds` like every other clock time in the HUD. If the transcript has no main-session response yet, the cache element stays hidden.
+
+It shows an expiry time rather than a countdown because the statusline only repaints while Claude Code is active. Between turns — exactly when the cache is draining — a countdown freezes at whatever it last displayed and keeps reporting it; a clock time stays true no matter how stale the render is.
+
+ClaudeHUD detects the cache tier from the transcript when possible. The existing `display.promptCacheTtlSeconds` setting remains a fallback for older or proxied transcripts that do not expose tier details:
+
+- **The TTL is detected.** Every cache write records the tier it used (`usage.cache_creation.ephemeral_5m_input_tokens` vs `ephemeral_1h_input_tokens`), so a 1-hour session counts down against an hour, and a session that changes tier mid-run is followed. Detected values take precedence over the configured fallback.
+- **The clock starts at the request**, not at the response it produced, because that is when the cache is read or written. Anchoring on the response would hand the session however long that response took to generate.
+- **Subagent responses are ignored.** A subagent runs against its own cache and does not refresh the main session's.
 
 ### Usage Limits
 
@@ -440,7 +460,7 @@ snapshot and can remain stale until another jj command records new changes.
 
 ### Auto-Refresh
 
-Claude Code only re-runs the statusline after an interaction (a new assistant message, `/compact` finishing, a permission-mode change, or a vim-mode toggle), so time-based HUD info — session duration, usage reset countdowns, the prompt-cache countdown — goes stale between messages. To keep it ticking, add `refreshInterval` (seconds, minimum 1) to the `statusLine` entry in `~/.claude/settings.json`:
+Claude Code only re-runs the statusline after an interaction (a new assistant message, `/compact` finishing, a permission-mode change, or a vim-mode toggle), so session duration and usage reset countdowns go stale between messages. Prompt-cache expiry remains correct because it is displayed as a wall-clock time. To keep countdowns ticking, add `refreshInterval` (seconds, minimum 1) to the `statusLine` entry in `~/.claude/settings.json`:
 
 ```json
 {

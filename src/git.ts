@@ -119,7 +119,9 @@ export async function getGitStatus(cwd?: string): Promise<GitStatus | null> {
     let branchUrl: string | undefined;
     try {
       const { stdout: remoteOut } = await runner.run(
-        ['remote', 'get-url', 'origin'],
+        // Read the configured URL directly; `remote get-url` applies global
+        // insteadOf rewrites and can hide a GitHub origin behind a proxy URL.
+        ['config', '--get', 'remote.origin.url'],
         1000,
       );
       const remote = remoteOut.trim();

@@ -4,6 +4,43 @@ All notable changes to Claude HUD will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0-fork.1] - 2026-08-19
+
+### Changed
+- Sync upstream v0.8.0 through commit `ef5f1c8` while preserving fork-specific MIMO and compactions behavior.
+- Retain DKalien fork attribution, repository links, and Windows-safe test compatibility.
+
+### Fixed
+- Preserve GitHub branch links when a global `url.*.insteadOf` rule rewrites the transport URL.
+
+## [0.8.0] - 2026-08-18
+
+### Added
+- Load optional per-config-directory overrides from `$CLAUDE_CONFIG_DIR/claude-hud.json` while preserving shared plugin settings (#714).
+- `display.effortFormat` option (`full` | `symbol` | `text`) to render the effort indicator as symbol only or level text only; `full` keeps the current output (#691).
+
+### Security
+- Bound config file size and nesting, reject symlinked or prototype-sensitive config input, and sanitize terminal-bound config labels (#714).
+
+## [0.7.2] - 2026-08-17
+
+### Fixed
+- Anchor prompt-cache expiry to the main-session request, ignore subagent cache writes, and detect 5-minute or 1-hour cache tiers while preserving the configured fallback (#702).
+
+### Security
+- Bound transcript request identifiers before grouping prompt-cache writes (#702).
+
+### Dependencies
+- Update the development-only `@types/node` package from 26.1.2 to 26.2.0 (#711).
+
+## [0.7.1] - 2026-08-11
+
+### Fixed
+- Remove completed agents on the next HUD refresh after one minute and keep completed history from displacing running agents (#704).
+
+### Security
+- Sanitize, validate, and bound agent labels before terminal output (#704).
+
 ## [0.7.0-fork.1] - 2026-08-09
 
 ### Changed

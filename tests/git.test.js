@@ -394,7 +394,7 @@ test('getGitStatus keeps line diffs for literal filenames containing arrow text'
   }
 });
 
-test('getGitStatus builds branchUrl from HTTPS origin remotes', async () => {
+test('getGitStatus builds branchUrl from configured HTTPS origin despite insteadOf rewrites', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
   try {
     execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
@@ -403,6 +403,7 @@ test('getGitStatus builds branchUrl from HTTPS origin remotes', async () => {
     execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
     execFileSync('git', ['checkout', '-b', 'feature/test-branch'], { cwd: dir, stdio: 'ignore' });
     execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/example/claude-hud.git'], { cwd: dir, stdio: 'ignore' });
+    execFileSync('git', ['config', 'url.https://mirror.invalid/example/.insteadOf', 'https://github.com/example/'], { cwd: dir, stdio: 'ignore' });
 
     const result = await getGitStatus(dir);
     assert.equal(result?.branchUrl, 'https://github.com/example/claude-hud/tree/feature/test-branch');

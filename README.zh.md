@@ -159,7 +159,15 @@ Claude Code → stdin JSON → claude-hud → stdout → 在终端中显示
 
 ### 手动配置
 
-直接编辑 `~/.claude/plugins/claude-hud/config.json` 来配置高级选项，如 `colors.*`、`pathLevels`、`maxWidth`、阈值覆盖、`display.timeFormat` 以及 `display.promptCacheTtlSeconds`。运行 `/claude-hud:configure` 时会保留这些手动设置，同时你仍可更改 `language`、布局和常用引导式开关。
+直接编辑 `~/.claude/plugins/claude-hud/config.json` 来配置高级选项，如 `colors.*`、`pathLevels`、`maxWidth`、阈值覆盖、`display.timeFormat`、`display.hourCycle` 以及 `display.promptCacheTtlSeconds`。运行 `/claude-hud:configure` 时会保留这些手动设置，同时你仍可更改 `language`、布局和常用引导式开关。
+
+如果你通过 `CLAUDE_CONFIG_DIR` 运行多个 Claude 配置目录，并将 `plugins/` 链接到共享位置，那么各目录中的 `plugins/claude-hud/config.json` 实际上是同一个物理文件。此时请将每个目录的设置放到 `$CLAUDE_CONFIG_DIR/claude-hud.json`：它使用相同的结构，只需填写要修改的键，并在加载时叠加到共享配置之上：
+
+例如，写入 `~/.config/claude/work/claude-hud.json`：
+
+```json
+{ "display": { "customLine": "工作团队" } }
+```
 
 简体与繁体中文 HUD 标签均为显式 opt-in 选项。除非你在 `/claude-hud:configure` 中选择中文语言或在配置中设置 `language`，否则默认使用英文。`zh` 别名对应简体中文，`zh-TW` 对应繁体中文；引导式配置会写入规范值 `zh-Hans` 或 `zh-Hant`。
 
@@ -223,10 +231,12 @@ Claude Code → stdin JSON → claude-hud → stdout → 在终端中显示
 | `display.showSessionStartDate` | boolean | false | 显示 transcript 会话开始时间戳 |
 | `display.showLastResponseAt` | boolean | false | 显示最后一次 assistant 响应写入的时间距现在多久 |
 | `display.showCompactions` | boolean | false | 显示本会话已发生的上下文压缩次数（手动 `/compact` 或自动压缩），从 transcript 的 `compact_boundary` 记录计数，例如 `压缩次数: 2`。第一次压缩前不显示 |
+| `display.showEffortLevel` | boolean | false | 在模型徽章中显示当前 reasoning effort。Ultracode 显示为 `ultracode(xhigh)`；数据来自 transcript，因此会跟随运行时的 `/effort` 变化 |
+| `display.effortFormat` | `full` \| `symbol` \| `text` | `full` | `display.showEffortLevel` 开启时的显示方式：符号和等级文本（`◑ high`）、仅符号（`◑`）或仅等级文本（`high`）。`symbol` 模式下 Ultracode 保留完整的 `◕ ultracode(xhigh)`，未知符号的等级回退为等级文本 |
 | `display.showClaudeCodeVersion` | boolean | false | 显示已安装的 Claude Code 版本，如 `CC v2.1.81` |
 | `display.showMemoryUsage` | boolean | false | 在展开布局中显示近似系统 RAM 使用行 |
-| `display.showPromptCache` | boolean | false | 根据 transcript 中最后一次 assistant 响应时间显示 prompt cache 倒计时 |
-| `display.promptCacheTtlSeconds` | number | `300` | Prompt cache TTL 秒数。Pro 保持默认值，Max 可设为 `3600` |
+| `display.showPromptCache` | boolean | false | 显示 prompt cache 的过期时刻，数据来自 transcript |
+| `display.promptCacheTtlSeconds` | number | `300` | 仅当 transcript 尚未报告 5 分钟或 1 小时缓存层级时使用的兼容回退值 |
 | `colors.context` | 颜色值 | `green` | 上下文进度条和百分比的基础颜色 |
 | `colors.usage` | 颜色值 | `brightBlue` | 使用率进度条和低于警告阈值时百分比的颜色 |
 | `colors.warning` | 颜色值 | `yellow` | 上下文阈值和使用率警告文本的警告颜色 |
@@ -251,7 +261,25 @@ Claude Code → stdin JSON → claude-hud → stdout → 在终端中显示
 
 官方 MiniMax Anthropic 兼容端点会显示 `MiniMax` 提供商标签。MiniMax M2.7 可使用其公开 token 和缓存价格进行本地估算；M3 的价格取决于单次请求的上下文层级，而累计会话 token 无法安全推断该层级，因此不会猜测 M3 费用。
 
-`display.showPromptCache` 为完全 opt-in 选项。启用后，ClaudeHUD 会读取本地 transcript 中最后一次 assistant 响应的时间戳，并显示距离 prompt cache 过期还剩多久。默认 TTL 为 5 分钟（`300` 秒）。如果你想按 1 小时的 Max 风格窗口显示，可将 `display.promptCacheTtlSeconds` 设为 `3600`。如果 transcript 里还没有 assistant 时间戳，这个元素会继续隐藏。
+`display.showPromptCache` 为完全 opt-in 选项。启用后，ClaudeHUD 会显示 **prompt cache 的过期时刻**（例如 `Cache ⏱ at 14:30`），过期后显示 `expired`。它与 HUD 中其他时刻一样遵循 `display.hourCycle` 和 `display.showClockSeconds`。如果 transcript 里还没有主会话响应，这个元素会继续隐藏。
+
+它显示过期时刻而不是倒计时，因为状态栏只在 Claude Code 活动时重绘。在两个回合之间——正好是缓存流失的时候——倒计时会停在最后一次显示的数值上并继续报告它；而时刻无论渲染多陈旧都仍然正确。
+
+ClaudeHUD 会尽可能从 transcript 检测缓存层级。对于不提供层级详情的旧版或代理 transcript，现有的 `display.promptCacheTtlSeconds` 设置仍作为回退值：
+
+- **TTL 是检测出来的。** 每次缓存写入都会记录所用的层级（`usage.cache_creation.ephemeral_5m_input_tokens` 与 `ephemeral_1h_input_tokens`），因此 1 小时的会话按 1 小时计时，中途更换层级的会话也会被跟随。检测值优先于配置的回退值。
+- **计时从请求开始**，而不是从它产生的响应开始，因为缓存是在请求时被读取或写入的。若以响应为基准，会把生成该响应所用的时间也算作可用时间。
+- **忽略 subagent 响应。** subagent 使用自己的缓存，不会刷新主会话的缓存。
+
+### 按配置目录覆盖
+
+`~/.claude/claude-hud.json`（更准确地说是 `$CLAUDE_CONFIG_DIR/claude-hud.json`）是可选的覆盖文件，在加载时叠加到 `config.json` 之上。它使用相同的结构，只需填写要修改的键，嵌套对象会逐键合并：
+
+```json
+{ "display": { "customLine": "工作团队" } }
+```
+
+它适用于多个 `CLAUDE_CONFIG_DIR` 共享 `plugins/` 的场景：`plugins/claude-hud/config.json` 是共享文件，而该覆盖文件仍属于各自的配置目录。引导式配置不会写入、删除或修改覆盖文件；覆盖中的值优先于 `config.json`。
 
 ### 使用率限制
 
@@ -401,7 +429,7 @@ HUD 以适合提示符的只读方式运行 jj：禁用 pager、忽略实时工�
 
 ### 自动刷新
 
-Claude Code 只在交互之后（新的助手消息、`/compact` 完成、权限模式变更、vim 模式切换）才会重新运行状态栏，因此与时间相关的 HUD 信息——会话时长、使用量重置倒计时、提示词缓存倒计时——在消息之间会停止更新。要让它们持续跳动，可以在 `~/.claude/settings.json` 的 `statusLine` 条目中添加 `refreshInterval`（秒，最小值 1）：
+Claude Code 只在交互之后（新的助手消息、`/compact` 完成、权限模式变更、vim 模式切换）才会重新运行状态栏，因此会话时长和使用量重置倒计时会在消息之间停止更新。Prompt cache 显示的是固定过期时刻，因此即使未刷新仍然正确。要让倒计时持续跳动，可以在 `~/.claude/settings.json` 的 `statusLine` 条目中添加 `refreshInterval`（秒，最小值 1）：
 
 ```json
 {

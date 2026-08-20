@@ -34,6 +34,15 @@ function stripAnsi(str) {
     .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '');
 }
 
+/**
+ * The prompt cache value for an anchor and TTL, derived rather than hardcoded so
+ * the assertion holds in any timezone or locale.
+ */
+function expectedCacheExpiry(anchorAt, ttlSeconds) {
+  const expiresAt = new Date(anchorAt.getTime() + ttlSeconds * 1000);
+  return `Cache ⏱ at ${expiresAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 function baseContext() {
   return {
     stdin: {
@@ -63,7 +72,7 @@ function baseContext() {
       elementOrder: ['project', 'context', 'usage', 'promptCache', 'memory', 'environment', 'tools', 'skills', 'mcp', 'agents', 'todos'],
       gitStatus: { enabled: true, showDirty: true, showAheadBehind: false, showFileStats: false, branchOverflow: 'truncate', pushWarningThreshold: 0, pushCriticalThreshold: 0 },
       jjStatus: { enabled: true, showDirty: true, showConflicts: true },
-      display: { showModel: true, showProject: true, showContextBar: true, contextValue: 'percent', showConfigCounts: true, showCost: false, showDuration: true, showSpeed: false, showTokenBreakdown: true, showUsage: true, usageValue: 'percent', usageBarEnabled: false, showResetLabel: true, showTools: true, showSkills: false, showMcp: false, showAgents: true, showTodos: true, showSessionTokens: false, showSessionName: false, showClaudeCodeVersion: false, showMemoryUsage: false, showPromptCache: false, promptCacheTtlSeconds: 300, showOutputStyle: false, mergeGroups: [['context', 'usage']], autocompactBuffer: 'enabled', usageThreshold: 0, sevenDayThreshold: 80, environmentThreshold: 0, customLine: '' },
+      display: { showModel: true, showProject: true, showContextBar: true, contextValue: 'percent', showConfigCounts: true, showCost: false, showDuration: true, showSpeed: false, showTokenBreakdown: true, showUsage: true, usageValue: 'percent', usageBarEnabled: false, showResetLabel: true, showTools: true, showSkills: false, showMcp: false, showAgents: true, showTodos: true, showSessionTokens: false, showSessionName: false, showClaudeCodeVersion: false, showMemoryUsage: false, showPromptCache: false, showOutputStyle: false, mergeGroups: [['context', 'usage']], autocompactBuffer: 'enabled', usageThreshold: 0, sevenDayThreshold: 80, environmentThreshold: 0, customLine: '' },
       colors: {
         context: 'green',
         usage: 'brightBlue',
@@ -79,6 +88,16 @@ function baseContext() {
       },
     },
   };
+}
+
+function withNow(now, fn) {
+  const originalNow = Date.now;
+  Date.now = () => now;
+  try {
+    return fn();
+  } finally {
+    Date.now = originalNow;
+  }
 }
 
 function captureRenderLines(ctx) {
@@ -466,10 +485,11 @@ test('render expanded layout includes prompt cache as its own opt-in element', (
   const ctx = baseContext();
   ctx.config.lineLayout = 'expanded';
   ctx.config.display.showPromptCache = true;
-  ctx.transcript.lastAssistantResponseAt = new Date(Date.now() - 45_000);
+  ctx.transcript.promptCacheAnchorAt = new Date(Date.now() - 45_000);
 
+  const expected = expectedCacheExpiry(ctx.transcript.promptCacheAnchorAt, 300);
   const lines = captureRenderLines(ctx);
-  assert.ok(lines.some(line => line.includes('Cache ⏱ 4m 15s')), `should render prompt cache line, got: ${lines.join(' | ')}`);
+  assert.ok(lines.some(line => line.includes(expected)), `should render prompt cache line, got: ${lines.join(' | ')}`);
 });
 
 test('renderSessionLine omits project name when cwd is undefined', () => {
@@ -505,13 +525,14 @@ test('renderPromptCacheLine returns null when disabled or missing transcript dat
   assert.equal(renderPromptCacheLine(ctx), null);
 });
 
-test('renderSessionLine includes prompt cache countdown when enabled', () => {
+test('renderSessionLine includes the prompt cache expiry when enabled', () => {
   const ctx = baseContext();
   ctx.config.display.showPromptCache = true;
-  ctx.transcript.lastAssistantResponseAt = new Date(Date.now() - 30_000);
+  ctx.transcript.promptCacheAnchorAt = new Date(Date.now() - 30_000);
 
+  const expected = expectedCacheExpiry(ctx.transcript.promptCacheAnchorAt, 300);
   const line = stripAnsi(renderSessionLine(ctx));
-  assert.ok(line.includes('Cache ⏱ 4m 30s'), `should include prompt cache countdown, got: ${line}`);
+  assert.ok(line.includes(expected), `should include prompt cache expiry, got: ${line}`);
 });
 
 test('renderSessionLine hides session name by default', () => {
@@ -1042,6 +1063,70 @@ test('renderSessionLine composes the effort label with a custom provider (compac
   ctx.effortSymbol = '◕';
   const line = stripAnsi(renderSessionLine(ctx));
   assert.ok(line.includes('[MyProxy | Claude Opus 4.6 ◕ ultracode(xhigh)]'), `got: ${line}`);
+});
+
+test('renderProjectLine renders only the effort symbol when effortFormat is symbol', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+  ctx.config.display.effortFormat = 'symbol';
+  ctx.effortLevel = 'high';
+  ctx.effortSymbol = '◑';
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(line.includes('[Claude Opus 4.6 ◑]'), `got: ${line}`);
+  assert.ok(!line.includes('high'), `level text must be dropped: ${line}`);
+});
+
+test('renderProjectLine renders only the effort level when effortFormat is text', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+  ctx.config.display.effortFormat = 'text';
+  ctx.effortLevel = 'high';
+  ctx.effortSymbol = '◑';
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(line.includes('[Claude Opus 4.6 high]'), `got: ${line}`);
+  assert.ok(!line.includes('◑'), `symbol must be dropped: ${line}`);
+});
+
+test('renderProjectLine keeps full effort output when effortFormat is full', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+  ctx.config.display.effortFormat = 'full';
+  ctx.effortLevel = 'high';
+  ctx.effortSymbol = '◑';
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(line.includes('[Claude Opus 4.6 ◑ high]'), `got: ${line}`);
+});
+
+test('renderProjectLine keeps the full ultracode label under effortFormat symbol', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+  ctx.config.display.effortFormat = 'symbol';
+  ctx.effortLevel = 'ultracode(xhigh)';
+  ctx.effortSymbol = '◕';
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(line.includes('[Claude Opus 4.6 ◕ ultracode(xhigh)]'), `got: ${line}`);
+});
+
+test('renderProjectLine falls back to the level text under effortFormat symbol without a known symbol', () => {
+  const ctx = baseContext();
+  ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+  ctx.config.display.effortFormat = 'symbol';
+  ctx.effortLevel = 'unknown';
+  ctx.effortSymbol = '';
+  const line = stripAnsi(renderProjectLine(ctx) ?? '');
+  assert.ok(line.includes('[Claude Opus 4.6 unknown]'), `got: ${line}`);
+});
+
+test('renderSessionLine renders only the effort symbol when effortFormat is symbol (compact layout)', () => {
+  const ctx = baseContext();
+  ctx.config.lineLayout = 'compact';
+  ctx.stdin.model = { display_name: 'Claude Opus 4.6' };
+  ctx.config.display.effortFormat = 'symbol';
+  ctx.effortLevel = 'high';
+  ctx.effortSymbol = '◑';
+  const line = stripAnsi(renderSessionLine(ctx));
+  assert.ok(line.includes('[Claude Opus 4.6 ◑]'), `got: ${line}`);
+  assert.ok(!line.includes('high'), `level text must be dropped: ${line}`);
 });
 
 test('renderProjectLine uses configurable element colors', () => {
@@ -1842,9 +1927,111 @@ test('renderAgentsLine renders completed agents', () => {
     },
   ];
 
-  const line = renderAgentsLine(ctx);
+  const line = withNow(30_000, () => renderAgentsLine(ctx));
   assert.ok(line?.includes('explore'));
   assert.ok(line?.includes('haiku'));
+});
+
+test('renderAgentsLine expires completed agents on the next render after one minute', () => {
+  const ctx = baseContext();
+  ctx.transcript.agents = [
+    {
+      id: 'agent-recent',
+      type: 'recent',
+      status: 'completed',
+      startTime: new Date(50_000),
+      endTime: new Date(60_000),
+    },
+  ];
+
+  assert.ok(withNow(120_000, () => renderAgentsLine(ctx))?.includes('recent'));
+  assert.equal(withNow(120_001, () => renderAgentsLine(ctx)), null);
+});
+
+test('renderAgentsLine hides completed agents without a trustworthy completion time', () => {
+  const ctx = baseContext();
+  ctx.transcript.agents = [
+    {
+      id: 'agent-missing-end',
+      type: 'missing-end',
+      status: 'completed',
+      startTime: new Date(0),
+    },
+    {
+      id: 'agent-invalid-end',
+      type: 'invalid-end',
+      status: 'completed',
+      startTime: new Date(0),
+      endTime: new Date(Number.NaN),
+    },
+    {
+      id: 'agent-future-end',
+      type: 'future-end',
+      status: 'completed',
+      startTime: new Date(0),
+      endTime: new Date(120_001),
+    },
+  ];
+
+  assert.equal(withNow(120_000, () => renderAgentsLine(ctx)), null);
+});
+
+test('renderAgentsLine gives all visible slots to running agents before completed history', () => {
+  const ctx = baseContext();
+  ctx.transcript.agents = [
+    {
+      id: 'completed-1',
+      type: 'completed-one',
+      status: 'completed',
+      startTime: new Date(0),
+      endTime: new Date(119_000),
+    },
+    {
+      id: 'completed-2',
+      type: 'completed-two',
+      status: 'completed',
+      startTime: new Date(0),
+      endTime: new Date(119_000),
+    },
+    ...['running-one', 'running-two', 'running-three', 'running-four'].map((type, index) => ({
+      id: `running-${index + 1}`,
+      type,
+      status: 'running',
+      startTime: new Date(119_000),
+    })),
+  ];
+
+  const line = withNow(120_000, () => renderAgentsLine(ctx));
+  assert.doesNotMatch(line ?? '', /completed-/);
+  assert.doesNotMatch(line ?? '', /running-one/);
+  assert.match(line ?? '', /running-two/);
+  assert.match(line ?? '', /running-three/);
+  assert.match(line ?? '', /running-four/);
+});
+
+test('renderAgentsLine fills remaining slots with the latest completed agents', () => {
+  const ctx = baseContext();
+  ctx.transcript.agents = [
+    ...['completed-one', 'completed-two', 'completed-three'].map((type, index) => ({
+      id: `completed-${index + 1}`,
+      type,
+      status: 'completed',
+      startTime: new Date(100_000),
+      endTime: new Date(119_000 + index),
+    })),
+    {
+      id: 'running-1',
+      type: 'running-one',
+      status: 'running',
+      startTime: new Date(119_000),
+    },
+  ];
+
+  const line = withNow(120_000, () => renderAgentsLine(ctx));
+  assert.doesNotMatch(line ?? '', /completed-one/);
+  assert.match(line ?? '', /completed-two/);
+  assert.match(line ?? '', /completed-three/);
+  assert.match(line ?? '', /running-one/);
 });
 
 test('renderAgentsLine truncates long descriptions and formats elapsed time', () => {
@@ -1856,8 +2043,8 @@ test('renderAgentsLine truncates long descriptions and formats elapsed time', ()
       model: 'haiku',
       description: 'A very long description that should be truncated in the HUD output',
       status: 'completed',
-      startTime: new Date(0),
-      endTime: new Date(1500),
+      startTime: new Date(63_500),
+      endTime: new Date(65_000),
     },
     {
       id: 'agent-2',
@@ -1868,7 +2055,7 @@ test('renderAgentsLine truncates long descriptions and formats elapsed time', ()
     },
   ];
 
-  const line = renderAgentsLine(ctx);
+  const line = withNow(65_000, () => renderAgentsLine(ctx));
   assert.ok(line?.includes('...'));
   assert.ok(line?.includes('2s'));
   assert.ok(line?.includes('1m'));
@@ -1909,7 +2096,10 @@ test('renderAgentsLine formats elapsed time in hours for long-running agents', (
     },
   ];
 
-  const line = renderAgentsLine(ctx);
+  const line = withNow(
+    (2 * 60 * 60 + 5 * 60) * 1000,
+    () => renderAgentsLine(ctx),
+  );
   assert.ok(line?.includes('2h 5m'));
 });
 
@@ -1925,8 +2115,59 @@ test('renderAgentsLine clamps negative elapsed time to under one second', () => 
     },
   ];
 
-  const line = renderAgentsLine(ctx);
+  const line = withNow(1000, () => renderAgentsLine(ctx));
   assert.ok(line?.includes('<1s'));
+});
+
+test('renderAgentsLine sanitizes untrusted agent labels before terminal output', () => {
+  const ctx = baseContext();
+  ctx.transcript.agents = [
+    {
+      id: 'agent-hostile',
+      type: '\x1b]8;;https://evil.example\x07explore\x1b]8;;\x07\n\u202e',
+      description: 'safe\x1b[2J\n\u202evisible',
+      status: 'running',
+      startTime: new Date(0),
+    },
+  ];
+
+  const line = withNow(1_000, () => renderAgentsLine(ctx));
+  assert.match(line ?? '', /explore/);
+  assert.match(line ?? '', /safevisible/);
+  assert.doesNotMatch(line ?? '', /evil\.example|\x1b\]8|\x1b\[2J|\n|\u202e/);
+});
+
+test('renderAgentsLine safely handles non-string cached agent labels', () => {
+  const ctx = baseContext();
+  ctx.transcript.agents = [
+    {
+      id: 'agent-invalid-labels',
+      type: { unexpected: true },
+      description: { unexpected: true },
+      status: 'running',
+      startTime: new Date(0),
+    },
+  ];
+
+  const line = withNow(1_000, () => renderAgentsLine(ctx));
+  assert.match(line ?? '', /agent/);
+  assert.doesNotMatch(line ?? '', /unexpected|\[object Object\]/);
+});
+
+test('renderAgentsLine bounds untrusted agent types', () => {
+  const ctx = baseContext();
+  ctx.transcript.agents = [
+    {
+      id: 'agent-long-type',
+      type: 'x'.repeat(100),
+      status: 'running',
+      startTime: new Date(0),
+    },
+  ];
+
+  const line = withNow(1_000, () => renderAgentsLine(ctx));
+  assert.match(line ?? '', new RegExp(`${'x'.repeat(21)}\\.\\.\\.`));
+  assert.doesNotMatch(line ?? '', new RegExp('x'.repeat(22)));
 });
 
 test('renderTodosLine handles in-progress and completed-only cases', () => {
