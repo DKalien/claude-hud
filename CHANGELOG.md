@@ -4,6 +4,20 @@ All notable changes to Claude HUD will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `display.showDailyCost` option to show today's cumulative spend across sessions (`Today $12.34`), accumulated from the native stdin `cost.total_cost_usd` into a per-day ledger that resets at local midnight (#695).
+
+### Fixed
+- Refresh the prompt-cache clock when a request starts rather than when its response arrives, ignoring client-side slash command records, interrupt markers, and subagent requests (#719).
+- Treat Agent `tool_result` payloads with `isAsync` or `status: async_launched` as background so the agents line stays up until the task-notification (#734).
+- Pass `--no-optional-locks` on `git diff --numstat` so a timed-out statusline poll cannot leave `.git/index.lock` behind (#726).
+- Render the prompt-cache clock as `until <time>` so the value reads as expiry, not write time (#727).
+- Harden Windows config reads when `O_NOFOLLOW` is unavailable by rejecting symlinks with `lstat` and verifying file identity before use.
+- Pin the Sonnet 5.1 pricing test date to 2026-08-31 so it remains stable after the introductory rate window; production pricing is unchanged.
+
+### Docs
+- Add the ten missing config options and the absolute-path caveat for `display.externalUsagePath` to `README.zh.md` (#730).
+
 ## [0.8.0-fork.1] - 2026-08-19
 
 ### Changed

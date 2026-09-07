@@ -68,6 +68,7 @@ src/
 ├── config.ts            # Load/validate user config
 ├── git.ts               # Git status (branch, dirty, ahead/behind)
 ├── cost.ts              # Cost estimation (native stdin cost preferred)
+├── daily-cost.ts        # Opt-in daily native cost ledger across sessions
 ├── effort.ts            # Thinking effort parsing
 ├── external-usage.ts    # External usage snapshot fallback / balance_label
 ├── mimo-snapshot.ts     # MIMO snapshot parsing (fork-specific)
@@ -132,6 +133,8 @@ Lines 1-2 always shown. Additional lines are opt-in via config:
 - Environment line (`showConfigCounts`): 2 CLAUDE.md | 4 rules
 - MIMO line (`showMimoUsage`): MIMO plan usage with progress bar (fork-specific)
 - Advisor label (`showAdvisor`): inlined on the project line, e.g. `Advisor: Opus 4.7`
+- Daily cost (`showDailyCost`): native cost increments across local sessions, starting at first observation; resets at local midnight
+- Model-scoped usage (`showModelScopedUsage`, default true): can hide per-model windows while retaining generic 5h/7d usage
 
 ### Context Thresholds
 
