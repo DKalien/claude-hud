@@ -10,6 +10,18 @@ All notable changes to Claude HUD will be documented in this file.
 ### Security
 - Reject Windows config symlinks and verify the opened file identity before using the bounded file-descriptor read.
 
+## [0.11.3-fork.1] - 2026-10-18
+
+### Changed
+- Sync upstream through `5f725e7`, including upstream v0.11.3 and subsequent updates such as the development-only `@types/node` update to 26.6.5.
+- Preserve the fork's MIMO Token Plan integration (disabled by default, opt-in through config and snapshot rendering in the current Frame architecture), expanded-layout compaction count inline on the Context row, DKalien attribution and repository links, and historical fork release entries.
+
+### Fixed
+- Stabilize Windows-sensitive tests in `claude-config-dir`, config-reader environment isolation, extra-command invocation and timeout checks, and file-URL rendering across platforms.
+
+### Security
+- Retain Windows config symlink rejection and opened-file identity checks when reading bounded config files.
+
 ## [0.11.3] - 2026-10-16
 
 ### Fixed

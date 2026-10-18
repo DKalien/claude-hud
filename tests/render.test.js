@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { renderLines } from '../dist/render/index.js';
 import { mergeConfig } from '../dist/config.js';
 import { setLanguage } from '../dist/i18n/index.js';
@@ -264,7 +265,7 @@ test('the git files line lists the newest files first and hides below 60 columns
     const c = ctx({ gitStatus: status, stdin: { cwd }, config: gitConfig });
     const files = raw(c, 120).at(-1);
     assert.equal(plain(files), '~g.ts(+1)  ~f.ts(+1)  ~e.ts(+1)  ~d.ts(+1)  ~c.ts(+1)  ~b.ts(+1)  +2 more  ?3');
-    assert.ok(files.includes(`file://${cwd}/g.ts`));
+    assert.ok(files.includes(pathToFileURL(path.join(cwd, 'g.ts')).href));
     assert.ok(!lines(c, 59).some((line) => line.includes('g.ts')));
   } finally {
     rmSync(cwd, { recursive: true, force: true });

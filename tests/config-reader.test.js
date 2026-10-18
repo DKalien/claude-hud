@@ -14,11 +14,28 @@ function restoreEnvVar(name, value) {
   process.env[name] = value;
 }
 
+function isolateHomeEnv(homeDir, configDir) {
+  const original = {
+    HOME: process.env.HOME,
+    USERPROFILE: process.env.USERPROFILE,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+  };
+  process.env.HOME = homeDir;
+  process.env.USERPROFILE = homeDir;
+  if (configDir === undefined) {
+    delete process.env.CLAUDE_CONFIG_DIR;
+  } else {
+    process.env.CLAUDE_CONFIG_DIR = configDir;
+  }
+  return () => {
+    for (const [name, value] of Object.entries(original)) restoreEnvVar(name, value);
+  };
+}
+
 test('countConfigs honors project and global config locations', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
   const projectDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-project-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     await mkdir(path.join(homeDir, '.claude', 'rules', 'nested'), { recursive: true });
@@ -52,7 +69,7 @@ test('countConfigs honors project and global config locations', async () => {
     assert.equal(counts.mcpCount, 4);
     assert.equal(counts.hooksCount, 2);
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
     await rm(projectDir, { recursive: true, force: true });
   }
@@ -61,10 +78,7 @@ test('countConfigs honors project and global config locations', async () => {
 test('countConfigs uses CLAUDE_CONFIG_DIR and its in-dir .claude.json for user scope', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
   const customConfigDir = path.join(homeDir, '.claude-2');
-  const originalHome = process.env.HOME;
-  const originalConfigDir = process.env.CLAUDE_CONFIG_DIR;
-  process.env.HOME = homeDir;
-  process.env.CLAUDE_CONFIG_DIR = customConfigDir;
+  const restoreHome = isolateHomeEnv(homeDir, customConfigDir);
 
   try {
     // Default directory should be ignored when CLAUDE_CONFIG_DIR is set.
@@ -101,8 +115,7 @@ test('countConfigs uses CLAUDE_CONFIG_DIR and its in-dir .claude.json for user s
     assert.equal(counts.mcpCount, 1);
     assert.equal(counts.hooksCount, 2);
   } finally {
-    restoreEnvVar('HOME', originalHome);
-    restoreEnvVar('CLAUDE_CONFIG_DIR', originalConfigDir);
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
   }
 });
@@ -110,10 +123,7 @@ test('countConfigs uses CLAUDE_CONFIG_DIR and its in-dir .claude.json for user s
 test('countConfigs still counts project .claude when cwd is home and CLAUDE_CONFIG_DIR points elsewhere', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
   const customConfigDir = path.join(homeDir, '.claude-2');
-  const originalHome = process.env.HOME;
-  const originalConfigDir = process.env.CLAUDE_CONFIG_DIR;
-  process.env.HOME = homeDir;
-  process.env.CLAUDE_CONFIG_DIR = customConfigDir;
+  const restoreHome = isolateHomeEnv(homeDir, customConfigDir);
 
   try {
     // User scope: custom config directory
@@ -142,16 +152,14 @@ test('countConfigs still counts project .claude when cwd is home and CLAUDE_CONF
     assert.equal(counts.mcpCount, 2);
     assert.equal(counts.hooksCount, 2);
   } finally {
-    restoreEnvVar('HOME', originalHome);
-    restoreEnvVar('CLAUDE_CONFIG_DIR', originalConfigDir);
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
   }
 });
 
 test('countConfigs avoids home cwd double-counting across counters and keeps CLAUDE.local.md', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     await mkdir(path.join(homeDir, '.claude', 'rules'), { recursive: true });
@@ -176,15 +184,14 @@ test('countConfigs avoids home cwd double-counting across counters and keeps CLA
     assert.equal(trailingSlashCounts.mcpCount, 1);
     assert.equal(trailingSlashCounts.hooksCount, 1);
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
   }
 });
 
 test('countConfigs excludes disabled user-scope MCPs', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     await mkdir(path.join(homeDir, '.claude'), { recursive: true });
@@ -204,7 +211,7 @@ test('countConfigs excludes disabled user-scope MCPs', async () => {
     const counts = await countConfigs();
     assert.equal(counts.mcpCount, 2); // 3 - 1 disabled = 2
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
   }
 });
@@ -212,8 +219,7 @@ test('countConfigs excludes disabled user-scope MCPs', async () => {
 test('countConfigs excludes disabled project .mcp.json servers', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
   const projectDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-project-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     await mkdir(path.join(homeDir, '.claude'), { recursive: true });
@@ -235,7 +241,7 @@ test('countConfigs excludes disabled project .mcp.json servers', async () => {
     const counts = await countConfigs(projectDir);
     assert.equal(counts.mcpCount, 2); // 4 - 2 disabled = 2
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
     await rm(projectDir, { recursive: true, force: true });
   }
@@ -243,8 +249,7 @@ test('countConfigs excludes disabled project .mcp.json servers', async () => {
 
 test('countConfigs handles all MCPs disabled', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     await mkdir(path.join(homeDir, '.claude'), { recursive: true });
@@ -264,15 +269,14 @@ test('countConfigs handles all MCPs disabled', async () => {
     const counts = await countConfigs();
     assert.equal(counts.mcpCount, 0); // All disabled
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
   }
 });
 
 test('countConfigs tolerates rule directory read errors', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   const rulesDir = path.join(homeDir, '.claude', 'rules');
   await mkdir(rulesDir, { recursive: true });
@@ -283,7 +287,7 @@ test('countConfigs tolerates rule directory read errors', async () => {
     assert.equal(counts.rulesCount, 0);
   } finally {
     fs.chmodSync(rulesDir, 0o755);
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
   }
 });
@@ -292,8 +296,7 @@ test('countConfigs follows symlinked rule files and directories safely', async (
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
   const projectDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-project-'));
   const sharedDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-rules-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     const rulesDir = path.join(projectDir, '.claude', 'rules');
@@ -312,7 +315,7 @@ test('countConfigs follows symlinked rule files and directories safely', async (
     const updated = await countConfigs(projectDir);
     assert.equal(updated.rulesCount, 3, 'cache should invalidate when a symlink target changes');
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
     await rm(projectDir, { recursive: true, force: true });
     await rm(sharedDir, { recursive: true, force: true });
@@ -323,8 +326,7 @@ test('countConfigs skips dangling links, cycles, and duplicate symlink targets',
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
   const projectDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-project-'));
   const sharedDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-rules-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     const rulesDir = path.join(projectDir, '.claude', 'rules');
@@ -338,7 +340,7 @@ test('countConfigs skips dangling links, cycles, and duplicate symlink targets',
     const counts = await countConfigs(projectDir);
     assert.equal(counts.rulesCount, 1);
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
     await rm(projectDir, { recursive: true, force: true });
     await rm(sharedDir, { recursive: true, force: true });
@@ -347,8 +349,7 @@ test('countConfigs skips dangling links, cycles, and duplicate symlink targets',
 
 test('countConfigs ignores non-string values in disabledMcpServers', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     await mkdir(path.join(homeDir, '.claude'), { recursive: true });
@@ -368,7 +369,7 @@ test('countConfigs ignores non-string values in disabledMcpServers', async () =>
     const counts = await countConfigs();
     assert.equal(counts.mcpCount, 2); // Only 'server2' disabled, server1 and server3 remain
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
   }
 });
@@ -376,8 +377,7 @@ test('countConfigs ignores non-string values in disabledMcpServers', async () =>
 test('countConfigs counts same-named servers in different scopes separately', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
   const projectDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-project-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     await mkdir(path.join(homeDir, '.claude'), { recursive: true });
@@ -401,7 +401,7 @@ test('countConfigs counts same-named servers in different scopes separately', as
     // 'shared-server' counted in BOTH scopes (user + project) = 4 total
     assert.equal(counts.mcpCount, 4);
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
     await rm(projectDir, { recursive: true, force: true });
   }
@@ -409,8 +409,7 @@ test('countConfigs counts same-named servers in different scopes separately', as
 
 test('countConfigs uses case-sensitive matching for disabled servers', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     await mkdir(path.join(homeDir, '.claude'), { recursive: true });
@@ -431,7 +430,7 @@ test('countConfigs uses case-sensitive matching for disabled servers', async () 
     // Both servers should still be enabled (case mismatch means not disabled)
     assert.equal(counts.mcpCount, 2);
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
   }
 });
@@ -442,8 +441,7 @@ test('countConfigs uses case-sensitive matching for disabled servers', async () 
 
 test('Issue #3: MCP count updates correctly when servers are disabled', async () => {
   const homeDir = await mkdtemp(path.join(tmpdir(), 'claude-hud-home-'));
-  const originalHome = process.env.HOME;
-  process.env.HOME = homeDir;
+  const restoreHome = isolateHomeEnv(homeDir);
 
   try {
     await mkdir(path.join(homeDir, '.claude'), { recursive: true });
@@ -506,7 +504,7 @@ test('Issue #3: MCP count updates correctly when servers are disabled', async ()
     counts = await countConfigs();
     assert.equal(counts.mcpCount, 0, 'Should show 0 MCPs when all are disabled');
   } finally {
-    process.env.HOME = originalHome;
+    restoreHome();
     await rm(homeDir, { recursive: true, force: true });
   }
 });
