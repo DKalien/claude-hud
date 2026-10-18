@@ -1,484 +1,329 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { getGitBranch, getGitStatus } from '../dist/git.js';
+import { getGitStatus, parseNumstat, parseStatus } from '../dist/git.js';
 
-test('getGitBranch returns null when cwd is undefined', async () => {
-  const result = await getGitBranch(undefined);
-  assert.equal(result, null);
-});
+const IDENTITY = ['-c', 'user.name=Test', '-c', 'user.email=test@test.com', '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false'];
 
-test('getGitBranch returns null for non-git directory', async () => {
+async function withRepo(fn, { commit = true } = {}) {
+  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
+  const git = (...args) => execFileSync('git', [...IDENTITY, ...args], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const write = (name, content) => writeFile(path.join(dir, name), content);
+  try {
+    git('init', '-q', '-b', 'main');
+    if (commit) git('commit', '-q', '--allow-empty', '-m', 'init');
+    await fn({ dir, git, write });
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+function mergeConflict(git) {
+  try {
+    git('merge', 'side');
+  } catch {
+    return;
+  }
+  assert.fail('expected the merge to conflict');
+}
+
+test('getGitStatus returns null without a cwd or outside a repo', async () => {
+  assert.equal(await getGitStatus(undefined), null);
   const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-nogit-'));
   try {
-    const result = await getGitBranch(dir);
-    assert.equal(result, null);
+    assert.equal(await getGitStatus(dir), null);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
 
-test('getGitBranch returns branch name for git directory', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitBranch(dir);
-    assert.ok(result === 'main' || result === 'master', `Expected main or master, got ${result}`);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+test('getGitStatus reports a clean branch', async () => {
+  await withRepo(async ({ dir }) => {
+    assert.deepEqual(await getGitStatus(dir), { branch: 'main', isDirty: false, ahead: 0, behind: 0, branchUrl: undefined });
+  });
 });
 
-test('getGitBranch returns custom branch name', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['checkout', '-b', 'feature/test-branch'], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitBranch(dir);
-    assert.equal(result, 'feature/test-branch');
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+test('getGitStatus shows the branch of a repo with no commits yet', async () => {
+  await withRepo(async ({ dir, write }) => {
+    await write('new.txt', 'x\n');
+    const status = await getGitStatus(dir);
+    assert.equal(status?.branch, 'main');
+    assert.equal(status?.fileStats?.untracked, 1);
+  }, { commit: false });
 });
 
-test('getGitBranch returns an exact tag name for detached tagged HEAD', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['-c', 'tag.gpgSign=false', 'tag', 'v1.2.3'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['checkout', '--detach', 'HEAD'], { cwd: dir, stdio: 'ignore' });
+test('getGitStatus counts modified, added, deleted, renamed, and untracked files', async () => {
+  await withRepo(async ({ dir, git, write }) => {
+    await write('keep.txt', 'a\n');
+    await write('gone.txt', 'a\n');
+    await write('old name.txt', 'a\nb\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'files');
 
-    const result = await getGitBranch(dir);
-    assert.equal(result, 'v1.2.3');
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+    await write('keep.txt', 'a\nchanged\n');
+    await rm(path.join(dir, 'gone.txt'));
+    git('mv', 'old name.txt', 'new name.txt');
+    await write('staged.txt', 'new\n');
+    git('add', 'staged.txt');
+    await write('untracked.txt', 'new\n');
 
-test('getGitBranch returns a detached short sha label for untagged detached HEAD', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-    const fullSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
-    execFileSync('git', ['checkout', '--detach', fullSha], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitBranch(dir);
-    assert.match(result ?? '', /^detached:[0-9a-f]{7,}$/);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-// getGitStatus tests
-test('getGitStatus returns null when cwd is undefined', async () => {
-  const result = await getGitStatus(undefined);
-  assert.equal(result, null);
-});
-
-test('getGitStatus returns null for non-git directory', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-nogit-'));
-  try {
-    const result = await getGitStatus(dir);
-    assert.equal(result, null);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('getGitStatus returns clean state for clean repo', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitStatus(dir);
-    assert.ok(result?.branch === 'main' || result?.branch === 'master');
-    assert.equal(result?.isDirty, false);
-    assert.equal(result?.ahead, 0);
-    assert.equal(result?.behind, 0);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('getGitStatus detects dirty state', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-
-    // Create uncommitted file
-    await writeFile(path.join(dir, 'dirty.txt'), 'uncommitted change');
-
-    const result = await getGitStatus(dir);
-    assert.equal(result?.isDirty, true);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-// fileStats tests
-test('getGitStatus returns undefined fileStats for clean repo', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitStatus(dir);
-    assert.equal(result?.fileStats, undefined);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('getGitStatus counts untracked files', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-
-    // Create untracked files
-    await writeFile(path.join(dir, 'untracked1.txt'), 'content');
-    await writeFile(path.join(dir, 'untracked2.txt'), 'content');
-
-    const result = await getGitStatus(dir);
-    assert.equal(result?.fileStats?.untracked, 2);
-    assert.equal(result?.fileStats?.modified, 0);
-    assert.equal(result?.fileStats?.added, 0);
-    assert.equal(result?.fileStats?.deleted, 0);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('getGitStatus counts modified files', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-
-    // Create and commit a file
-    await writeFile(path.join(dir, 'file.txt'), 'original');
-    execFileSync('git', ['add', 'file.txt'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '-m', 'add file'], { cwd: dir, stdio: 'ignore' });
-
-    // Modify the file
-    await writeFile(path.join(dir, 'file.txt'), 'modified');
-
-    const result = await getGitStatus(dir);
-    assert.equal(result?.fileStats?.modified, 1);
-    assert.equal(result?.fileStats?.untracked, 0);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('getGitStatus returns UTF-8 filenames when core.quotePath is true', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'core.quotePath', 'true'], { cwd: dir, stdio: 'ignore' });
-
-    const fileName = '日本語.txt';
-    await writeFile(path.join(dir, fileName), 'original\n');
-    execFileSync('git', ['add', fileName], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '-m', 'add utf8 file'], { cwd: dir, stdio: 'ignore' });
-
-    await writeFile(path.join(dir, fileName), 'modified\n');
-    const quotedStatus = execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' });
-    assert.match(quotedStatus, /\\[0-7]{3}/, `expected git to octal-escape path, got ${quotedStatus}`);
-    assert.equal(quotedStatus.includes(fileName), false);
-
-    const result = await getGitStatus(dir);
-    const tracked = result?.fileStats?.trackedFiles ?? [];
-
-    assert.equal(result?.fileStats?.modified, 1);
+    const status = await getGitStatus(dir);
+    assert.equal(status?.isDirty, true);
+    const { trackedFiles, ...counts } = status.fileStats;
+    assert.deepEqual(counts, { modified: 2, added: 1, deleted: 1, untracked: 1 });
     assert.deepEqual(
-      tracked.map((file) => ({ basename: file.basename, fullPath: file.fullPath, lineDiff: file.lineDiff })),
-      [{ basename: fileName, fullPath: fileName, lineDiff: { added: 1, deleted: 1 } }]
+      trackedFiles.map((file) => `${file.type}:${file.fullPath}`).sort(),
+      ['added:staged.txt', 'deleted:gone.txt', 'modified:keep.txt', 'modified:new name.txt'],
     );
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+    assert.equal(status.lineDiff, undefined, 'line diffs only run when requested');
+  });
 });
 
-test('getGitStatus counts staged added files', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
+test('getGitStatus attaches line diffs, including to renamed and unusually named files', async () => {
+  await withRepo(async ({ dir, git, write }) => {
+    const odd = process.platform === 'win32' ? 'tab and ünïcode.txt' : 'tab\tand\x1bünïcode.txt';
+    await write('old.txt', 'a\nb\n');
+    await write(odd, 'a\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'files');
+
+    git('mv', 'old.txt', 'renamed.txt');
+    await write('renamed.txt', 'a\nb\nc\n');
+    await write(odd, 'a\nb\nc\nd\n');
+
+    const status = await getGitStatus(dir, { lineDiffs: true });
+    assert.deepEqual(status?.lineDiff, { added: 4, deleted: 0 });
+    const byPath = Object.fromEntries(status.fileStats.trackedFiles.map((file) => [file.fullPath, file.lineDiff]));
+    assert.deepEqual(byPath, { 'renamed.txt': { added: 1, deleted: 0 }, [odd]: { added: 3, deleted: 0 } });
+  });
+});
+
+test('getGitStatus line diffs never rewrite the index', async () => {
+  await withRepo(async ({ dir, git, write }) => {
+    await write('a.txt', 'a\n');
+    await write('b.txt', 'b\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'files');
+    // b.txt gets a new mtime but the same content: stale stat data that porcelain `git diff`
+    // would refresh into .git/index under index.lock.
+    const old = new Date('2020-01-01T00:00:00Z');
+    await utimes(path.join(dir, 'b.txt'), old, old);
+    git('update-index', '--refresh');
+    await utimes(path.join(dir, 'b.txt'), new Date(), new Date());
+    await write('a.txt', 'a\nb\n');
+    const index = path.join(dir, '.git', 'index');
+    const before = await readFile(index);
+
+    const status = await getGitStatus(dir, { lineDiffs: true });
+    assert.deepEqual(status?.lineDiff, { added: 1, deleted: 0 });
+    assert.deepEqual(await readFile(index), before);
+  });
+});
+
+test('getGitStatus counts unmerged paths once each', async () => {
+  await withRepo(async ({ dir, git, write }) => {
+    await write('conflict.txt', 'base\n');
+    await write('original.txt', 'base\n');
+    git('add', '.');
+    git('commit', '-q', '-m', 'base');
+    git('checkout', '-q', '-b', 'side');
+    await write('conflict.txt', 'side\n');
+    git('mv', 'original.txt', 'side.txt');
+    git('commit', '-q', '-am', 'side');
+    git('checkout', '-q', 'main');
+    await write('conflict.txt', 'ours\n');
+    git('mv', 'original.txt', 'ours.txt');
+    git('commit', '-q', '-am', 'ours');
+    mergeConflict(git);
+
+    const reported = git('status', '--porcelain').split('\n').filter(Boolean).length;
+    const stats = (await getGitStatus(dir))?.fileStats;
+    assert.equal(stats.modified + stats.added + stats.deleted + stats.untracked, reported);
+    assert.equal(stats.trackedFiles.find((file) => file.fullPath === 'conflict.txt')?.type, 'modified');
+  });
+});
+
+test('getGitStatus names a detached HEAD by tag, else by short sha', async () => {
+  await withRepo(async ({ dir, git }) => {
+    git('tag', 'v1.0.0');
+    git('checkout', '-q', '--detach');
+    assert.equal((await getGitStatus(dir))?.branch, 'v1.0.0');
+
+    git('commit', '-q', '--allow-empty', '-m', 'untagged');
+    const sha = git('rev-parse', 'HEAD').trim();
+    assert.equal((await getGitStatus(dir))?.branch, `detached:${sha.slice(0, 7)}`);
+  });
+});
+
+test('getGitStatus counts commits ahead of and behind the upstream', async () => {
+  await withRepo(async ({ dir, git }) => {
+    git('branch', 'upstream');
+    git('branch', '-q', '--set-upstream-to=upstream');
+    git('commit', '-q', '--allow-empty', '-m', 'ours 1');
+    git('commit', '-q', '--allow-empty', '-m', 'ours 2');
+    git('checkout', '-q', 'upstream');
+    git('commit', '-q', '--allow-empty', '-m', 'theirs');
+    git('checkout', '-q', 'main');
+
+    const status = await getGitStatus(dir);
+    assert.equal(status?.ahead, 2);
+    assert.equal(status?.behind, 1);
+  });
+});
+
+test('getGitStatus links GitHub branches and commits from the stdin repo identity', async () => {
+  await withRepo(async ({ dir, git }) => {
+    const repo = { host: 'github.com', owner: 'octo', name: 'hud' };
+    git('checkout', '-q', '-b', 'feat/x#1');
+    assert.equal((await getGitStatus(dir, { repo }))?.branchUrl, 'https://github.com/octo/hud/tree/feat/x%231');
+
+    git('checkout', '-q', '--detach');
+    const sha = git('rev-parse', 'HEAD').trim().slice(0, 7);
+    assert.equal((await getGitStatus(dir, { repo }))?.branchUrl, `https://github.com/octo/hud/commit/${sha}`);
+
+    for (const other of [{ ...repo, host: 'gitlab.com' }, { ...repo, owner: 'a/b' }, { ...repo, name: 'x?y' }, null]) {
+      assert.equal((await getGitStatus(dir, { repo: other }))?.branchUrl, undefined);
+    }
+  });
+});
+
+// Writes git config entries to a file, escaped as git expects (a bare `;` would start a comment).
+function writeConfig(file, entries) {
+  for (const [key, value] of Object.entries(entries)) execFileSync('git', ['config', '--file', file, key, value]);
+}
+
+// Runs fn with a global git config holding `entries`, as git-lfs installs its filter.
+async function withGlobalConfig(entries, fn) {
+  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-global-'));
+  const file = path.join(dir, 'gitconfig');
+  writeConfig(file, entries);
+  const saved = process.env.GIT_CONFIG_GLOBAL;
+  process.env.GIT_CONFIG_GLOBAL = file;
   try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-
-    // Create and stage a new file
-    await writeFile(path.join(dir, 'newfile.txt'), 'content');
-    execFileSync('git', ['add', 'newfile.txt'], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitStatus(dir);
-    assert.equal(result?.fileStats?.added, 1);
-    assert.equal(result?.fileStats?.untracked, 0);
+    await fn(dir);
   } finally {
+    if (saved === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+    else process.env.GIT_CONFIG_GLOBAL = saved;
     await rm(dir, { recursive: true, force: true });
   }
-});
+}
 
-test('getGitStatus counts deleted files', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
+const OLD = new Date('2020-01-01T00:00:00Z');
+const exists = (file) => stat(file).then(() => true, () => false);
 
-    // Create, commit, then delete a file
-    await writeFile(path.join(dir, 'todelete.txt'), 'content');
-    execFileSync('git', ['add', 'todelete.txt'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '-m', 'add file'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['rm', 'todelete.txt'], { cwd: dir, stdio: 'ignore' });
+// Commits `files` under `attributes`, then moves their mtimes so git has to hash them (through their filter) again.
+async function commitStale(dir, git, write, attributes, files) {
+  await write('.gitattributes', attributes);
+  for (const name of files) await write(name, `${name}\n`);
+  git('add', '.');
+  git('commit', '-q', '-m', 'files');
+  for (const name of files) await utimes(path.join(dir, name), OLD, OLD);
+}
 
-    const result = await getGitStatus(dir);
-    assert.equal(result?.fileStats?.deleted, 1);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('getGitStatus includes total and per-file line diffs for modified files', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-
-    await writeFile(path.join(dir, 'file.txt'), 'one\ntwo\nthree\n');
-    execFileSync('git', ['add', 'file.txt'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '-m', 'add file'], { cwd: dir, stdio: 'ignore' });
-
-    await writeFile(path.join(dir, 'file.txt'), 'one\nthree\nfour\n');
-
-    const result = await getGitStatus(dir);
-    assert.deepEqual(result?.lineDiff, { added: 1, deleted: 1 });
-    assert.deepEqual(result?.fileStats?.trackedFiles[0]?.lineDiff, { added: 1, deleted: 1 });
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('getGitStatus attaches line diffs to renamed files', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: dir, stdio: 'ignore' });
-
-    await writeFile(path.join(dir, 'old_name.txt'), 'one\ntwo\nthree\n');
-    execFileSync('git', ['add', 'old_name.txt'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '-m', 'add old_name'], { cwd: dir, stdio: 'ignore' });
-
-    execFileSync('git', ['mv', 'old_name.txt', 'new_name.txt'], { cwd: dir, stdio: 'ignore' });
-    await writeFile(path.join(dir, 'new_name.txt'), 'one\ntwo\nthree\nfour\nfive\n');
-    execFileSync('git', ['add', 'new_name.txt'], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitStatus(dir);
-    const tracked = result?.fileStats?.trackedFiles ?? [];
-    const renamed = tracked.find((f) => f.fullPath?.endsWith('new_name.txt'));
-
-    assert.ok(renamed, `expected renamed file in trackedFiles, got ${JSON.stringify(tracked)}`);
-    assert.ok(
-      renamed?.lineDiff,
-      `expected lineDiff on renamed file, got ${JSON.stringify(renamed)}`
-    );
-    assert.equal(renamed?.lineDiff?.added, 2);
-    assert.equal(renamed?.lineDiff?.deleted, 0);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('getGitStatus attaches line diffs to renamed files with shared directory prefix', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: dir, stdio: 'ignore' });
-    // Some git configurations emit numstat in the brace form: `pkg/{old.ts => new.ts}`.
-    // Enable numstat-specific rename detection so we exercise that path.
-    execFileSync('git', ['config', 'diff.renames', 'true'], { cwd: dir, stdio: 'ignore' });
-
-    const pkgDir = path.join(dir, 'pkg');
-    await writeFile(path.join(dir, '.gitkeep'), '');
-    execFileSync('git', ['add', '.gitkeep'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-
-    await mkdir(pkgDir, { recursive: true });
-    await writeFile(path.join(pkgDir, 'old.ts'), 'export const a = 1;\n');
-    execFileSync('git', ['add', 'pkg/old.ts'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '-m', 'add old.ts'], { cwd: dir, stdio: 'ignore' });
-
-    execFileSync('git', ['mv', 'pkg/old.ts', 'pkg/new.ts'], { cwd: dir, stdio: 'ignore' });
-    await writeFile(path.join(pkgDir, 'new.ts'), 'export const a = 1;\nexport const b = 2;\n');
-    execFileSync('git', ['add', 'pkg/new.ts'], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitStatus(dir);
-    const tracked = result?.fileStats?.trackedFiles ?? [];
-    const renamed = tracked.find((f) => f.fullPath?.endsWith('new.ts'));
-
-    assert.ok(renamed, `expected renamed file in trackedFiles, got ${JSON.stringify(tracked)}`);
-    assert.ok(
-      renamed?.lineDiff,
-      `expected lineDiff on renamed file, got ${JSON.stringify(renamed)}`
-    );
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-
-test('getGitStatus keeps line diffs for literal filenames containing arrow text', {
-  skip: process.platform === 'win32' ? 'Windows filenames cannot contain >' : false,
+test('getGitStatus falls back to the branch alone when status times out', {
+  skip: process.platform === 'win32' ? 'needs a POSIX filter command' : false,
 }, async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: dir, stdio: 'ignore' });
-
-    const fileName = 'foo => bar.txt';
-    await writeFile(path.join(dir, fileName), 'one\ntwo\n');
-    execFileSync('git', ['add', fileName], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '-m', 'add literal arrow file'], { cwd: dir, stdio: 'ignore' });
-
-    await writeFile(path.join(dir, fileName), 'one\ntwo\nthree\n');
-
-    const result = await getGitStatus(dir);
-    const tracked = result?.fileStats?.trackedFiles ?? [];
-    const modified = tracked.find((f) => f.fullPath === fileName);
-
-    assert.ok(modified, `expected literal arrow filename in trackedFiles, got ${JSON.stringify(tracked)}`);
-    assert.deepEqual(
-      modified?.lineDiff,
-      { added: 1, deleted: 0 },
-      `expected lineDiff on literal arrow filename, got ${JSON.stringify(modified)}`
-    );
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  await withRepo(async ({ dir, git, write }) => {
+    await commitStale(dir, git, write, '*.txt filter=slow\n', ['a.txt']);
+    // A filter from the user's own config still runs, so it can make status slow.
+    await withGlobalConfig({ 'filter.slow.clean': "sh -c 'sleep 3; cat'" }, async () => {
+      const started = Date.now();
+      assert.deepEqual(await getGitStatus(dir), { branch: 'main', isDirty: false, ahead: 0, behind: 0, branchUrl: undefined });
+      assert.ok(Date.now() - started < 2500, 'gave up on the slow status');
+    });
+  });
 });
 
-test('getGitStatus builds branchUrl from configured HTTPS origin despite insteadOf rewrites', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['checkout', '-b', 'feature/test-branch'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/example/claude-hud.git'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'url.https://mirror.invalid/example/.insteadOf', 'https://github.com/example/'], { cwd: dir, stdio: 'ignore' });
+test('getGitStatus never runs commands named in the repository\'s own config', {
+  skip: process.platform === 'win32' ? 'needs POSIX commands' : false,
+}, async () => {
+  await withRepo(async ({ dir, git, write }) => {
+    await commitStale(dir, git, write, '*.txt filter=evil\n*.md filter=in.cluded\n', ['a.txt', 'b.md']);
+    await write('a.txt', 'a.txt\nmore\n');
+    const ran = (what) => path.join(dir, '.git', `ran-${what}`);
+    // GHSA-fq7j-8hxj-jfqh: core.fsmonitor runs on every status. A filter driver runs whenever git
+    // hashes a changed file, whether it's in .git/config or a file that config includes.
+    writeConfig(path.join(dir, '.git', 'config'), {
+      'core.fsmonitor': `touch '${ran('fsmonitor')}'`,
+      'filter.evil.clean': `sh -c 'touch "${ran('filter')}"; cat'`,
+      'include.path': 'included',
+    });
+    writeConfig(path.join(dir, '.git', 'included'), { 'filter.in.cluded.clean': `sh -c 'touch "${ran('included')}"; cat'` });
 
-    const result = await getGitStatus(dir);
-    assert.equal(result?.branchUrl, 'https://github.com/example/claude-hud/tree/feature/test-branch');
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+    const status = await getGitStatus(dir, { lineDiffs: true });
+    assert.deepEqual(status?.lineDiff, { added: 1, deleted: 0 }, 'still reports the change');
+    for (const what of ['fsmonitor', 'filter', 'included']) assert.equal(await exists(ran(what)), false, what);
+  });
 });
 
-test('getGitStatus builds branchUrl from SSH origin remotes', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['checkout', '-b', 'feature/test-branch'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['remote', 'add', 'origin', 'git@github.com:example/claude-hud.git'], { cwd: dir, stdio: 'ignore' });
+test('getGitStatus does not run git inside submodules, which reads their own config', {
+  skip: process.platform === 'win32' ? 'needs POSIX commands' : false,
+}, async () => {
+  await withRepo(async ({ dir: sub, git: subGit, write: subWrite }) => {
+    await commitStale(sub, subGit, subWrite, '*.txt filter=evil\n', ['s.txt']);
+    await withRepo(async ({ dir, git }) => {
+      git('-c', 'protocol.file.allow=always', 'submodule', '-q', 'add', sub, 'sm');
+      git('commit', '-q', '-m', 'submodule');
+      await utimes(path.join(dir, 'sm', 's.txt'), OLD, OLD);
+      const marker = path.join(dir, '.git', 'ran-submodule-filter');
+      writeConfig(path.join(dir, '.git', 'modules', 'sm', 'config'), { 'filter.evil.clean': `sh -c 'touch "${marker}"; cat'` });
 
-    const result = await getGitStatus(dir);
-    assert.equal(result?.branchUrl, 'https://github.com/example/claude-hud/tree/feature/test-branch');
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+      assert.equal((await getGitStatus(dir, { lineDiffs: true }))?.branch, 'main');
+      assert.equal(await exists(marker), false);
+    });
+  });
 });
 
-test('getGitStatus links an untagged detached HEAD to its commit', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-    const fullSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
-    execFileSync('git', ['checkout', '--detach', fullSha], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/example/claude-hud.git'], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitStatus(dir);
-    const shortSha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
-    assert.equal(result?.branch, `detached:${shortSha}`);
-    assert.equal(result?.branchUrl, `https://github.com/example/claude-hud/commit/${shortSha}`);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+test('getGitStatus keeps filters from the user\'s own config, such as git-lfs', {
+  skip: process.platform === 'win32' ? 'needs a POSIX filter command' : false,
+}, async () => {
+  await withRepo(async ({ dir, git, write }) => {
+    // Not named lfs: a machine with git-lfs installed has a system-wide filter.lfs.process, which wins over clean.
+    await commitStale(dir, git, write, '*.bin filter=mine\n', ['a.bin']);
+    await withGlobalConfig({}, async (globalDir) => {
+      const marker = path.join(globalDir, 'ran');
+      writeConfig(process.env.GIT_CONFIG_GLOBAL, { 'filter.mine.clean': `sh -c 'touch "${marker}"; cat'` });
+      await getGitStatus(dir, { lineDiffs: true });
+      assert.equal(await exists(marker), true);
+    });
+  });
 });
 
-test('getGitStatus does not build branchUrl for non-GitHub HTTPS remotes', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['checkout', '-b', 'feature/test-branch'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['remote', 'add', 'origin', 'https://gitlab.com/example/claude-hud.git'], { cwd: dir, stdio: 'ignore' });
+test('parseStatus reads porcelain v2 headers and every record type', () => {
+  const output = [
+    '# branch.oid 1234567890abcdef1234567890abcdef12345678',
+    '# branch.head (detached)',
+    '# branch.upstream origin/main',
+    '# branch.ab +3 -1',
+    '1 .M N... 100644 100644 100644 aaaa aaaa src/with space.ts',
+    '2 R. N... 100644 100644 100644 aaaa aaaa R100 new name.ts',
+    'old name.ts',
+    'u UU N... 100644 100644 100644 100644 aaaa bbbb cccc both.ts',
+    '1 .T N... 100644 120000 120000 aaaa aaaa typechange.ts',
+    '? untracked.ts',
+    '',
+  ].join('\0');
 
-    const result = await getGitStatus(dir);
-    assert.equal(result?.branchUrl, undefined);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+  const parsed = parseStatus(output);
+  assert.equal(parsed.oid, '1234567890abcdef1234567890abcdef12345678');
+  assert.equal(parsed.head, null);
+  assert.equal(parsed.ahead, 3);
+  assert.equal(parsed.behind, 1);
+  assert.equal(parsed.dirty, true);
+  assert.deepEqual(parsed.fileStats.trackedFiles.map((file) => file.fullPath), ['src/with space.ts', 'new name.ts', 'both.ts']);
+  assert.equal(parsed.fileStats.trackedFiles[0].basename, 'with space.ts');
+  assert.equal(parsed.fileStats.modified, 3);
+  assert.equal(parsed.fileStats.untracked, 1);
 });
 
-test('getGitStatus does not build branchUrl for non-GitHub SSH remotes', async () => {
-  const dir = await mkdtemp(path.join(tmpdir(), 'claude-hud-git-'));
-  try {
-    execFileSync('git', ['init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '--allow-empty', '-m', 'init'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['checkout', '-b', 'feature/test-branch'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['remote', 'add', 'origin', 'git@gitlab.com:example/claude-hud.git'], { cwd: dir, stdio: 'ignore' });
-
-    const result = await getGitStatus(dir);
-    assert.equal(result?.branchUrl, undefined);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+test('parseNumstat keys renames by their new path and skips binary files', () => {
+  const output = ['3\t1\tsrc/a.ts', '2\t0\t', 'old.ts', 'new.ts', '-\t-\timage.png', '1\t1\ttab\tname.ts', ''].join('\0');
+  assert.deepEqual([...parseNumstat(output)], [
+    ['src/a.ts', { added: 3, deleted: 1 }],
+    ['new.ts', { added: 2, deleted: 0 }],
+    ['tab\tname.ts', { added: 1, deleted: 1 }],
+  ]);
 });

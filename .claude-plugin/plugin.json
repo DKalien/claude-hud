@@ -1,6 +1,6 @@
 {
   "name": "claude-hud",
-  "description": "Real-time statusline HUD for Claude Code - context health, tool activity, agent tracking, and todo progress",
+  "description": "Real-time statusline HUD for Claude Code - context health, tool activity, agent tracking, and todo progress Includes fork-specific MIMO Token Plan integration.",
   "version": "0.8.0-fork.1",
   "author": {
     "name": "Jarrod Watts (original), DKalien (fork)",
@@ -13,5 +13,15 @@
   "homepage": "https://github.com/DKalien/claude-hud",
   "repository": "https://github.com/DKalien/claude-hud",
   "license": "MIT",
-  "keywords": ["hud", "monitoring", "statusline", "context", "tools", "agents", "todos", "claude-code"]
+  "keywords": [
+    "hud",
+    "monitoring",
+    "statusline",
+    "context",
+    "tools",
+    "agents",
+    "todos",
+    "claude-code",
+    "mimo"
+  ]
 }
