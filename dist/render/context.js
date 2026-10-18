@@ -3,6 +3,7 @@ import { t } from '../i18n/index.js';
 import { formatContextValue, formatTokens } from '../utils/format.js';
 import { contextUsage } from './derive.js';
 import { barLabel } from './labels.js';
+import { compactionsPart } from './parts.js';
 function thresholds(f) {
     return {
         warning: f.config?.display?.contextWarningThreshold,
@@ -35,6 +36,8 @@ export function tokenBreakdown(f) {
 export function contextLine(f, align = {}) {
     const { bar, value } = contextBarAndValue(f);
     const prefix = barLabel('label.context', f.config?.colors, align);
-    return `${prefix} ${bar ? `${bar} ` : ''}${value}${tokenBreakdown(f)}`;
+    const compactions = compactionsPart(f);
+    const compactionsSeparator = compactions ? label(' │ ', f.config?.colors) : '';
+    return `${prefix} ${bar ? `${bar} ` : ''}${value}${tokenBreakdown(f)}${compactionsSeparator}${compactions ?? ''}`;
 }
 //# sourceMappingURL=context.js.map

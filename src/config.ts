@@ -511,9 +511,19 @@ function readConfigFile(configPath: string): Record<string, unknown> | null {
     // O_NOFOLLOW rejects symlinks on POSIX; it is undefined on Windows.
     const fd = fs.openSync(configPath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
     try {
-      if (!fs.fstatSync(fd).isFile()) {
+      const stat = fs.fstatSync(fd);
+      if (!stat.isFile()) {
         debug('Ignoring %s: not a regular file', configPath);
         return null;
+      }
+      // O_NOFOLLOW is not available on Windows. Reject symlinks there and
+      // ensure the path still identifies the file opened above before reading.
+      if (process.platform === 'win32') {
+        const pathStat = fs.lstatSync(configPath);
+        if (pathStat.isSymbolicLink() || pathStat.dev !== stat.dev || pathStat.ino !== stat.ino) {
+          debug('Ignoring %s: symlink or changed file', configPath);
+          return null;
+        }
       }
       const buf = Buffer.alloc(MAX_CONFIG_FILE_BYTES + 1);
       let length = 0;

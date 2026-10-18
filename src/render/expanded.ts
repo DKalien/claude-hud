@@ -9,7 +9,7 @@ import type { LabelAlign } from './labels.js';
 import { addedDirsLine, cacheHitRateLine, environmentLine, memoryLine, promptCacheLine, sessionTimeLine } from './lines.js';
 import { orderParts } from './order.js';
 import {
-  advisorPart, authPart, compactionsPart, costPart, customLinePart, durationPart, extraPart, modelBadge,
+  advisorPart, authPart, costPart, customLinePart, durationPart, extraPart, modelBadge,
   projectParts, sessionNamePart, sessionTokensSummary, speedPart, versionPart, type Part,
 } from './parts.js';
 import { usageParts } from './usage.js';
@@ -141,9 +141,6 @@ export function expandedLines(f: Frame): string[] {
     const tokens = elementLine(f, 'sessionTokens');
     if (tokens) lines.push(tokens);
   }
-  const compactions = compactionsPart(f);
-  if (compactions) lines.push(compactions);
-
   const firstActivity = rows.findIndex(({ activity }) => activity);
   if (f.config?.showSeparators && firstActivity > 0) {
     const widest = Math.max(...rows.slice(0, firstActivity).map(({ line }) => visibleWidth(line)), 20);

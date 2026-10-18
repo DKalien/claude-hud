@@ -5,7 +5,7 @@ import { contextLine } from './context.js';
 import { renderMimoLine } from './mimo.js';
 import { addedDirsLine, cacheHitRateLine, environmentLine, memoryLine, promptCacheLine, sessionTimeLine } from './lines.js';
 import { orderParts } from './order.js';
-import { advisorPart, authPart, compactionsPart, costPart, customLinePart, durationPart, extraPart, modelBadge, projectParts, sessionNamePart, sessionTokensSummary, speedPart, versionPart, } from './parts.js';
+import { advisorPart, authPart, costPart, customLinePart, durationPart, extraPart, modelBadge, projectParts, sessionNamePart, sessionTokensSummary, speedPart, versionPart, } from './parts.js';
 import { usageParts } from './usage.js';
 import { gitFilesLine } from './vcs.js';
 import { t } from '../i18n/index.js';
@@ -130,9 +130,6 @@ export function expandedLines(f) {
         if (tokens)
             lines.push(tokens);
     }
-    const compactions = compactionsPart(f);
-    if (compactions)
-        lines.push(compactions);
     const firstActivity = rows.findIndex(({ activity }) => activity);
     if (f.config?.showSeparators && firstActivity > 0) {
         const widest = Math.max(...rows.slice(0, firstActivity).map(({ line }) => visibleWidth(line)), 20);

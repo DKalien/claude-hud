@@ -7,6 +7,9 @@ All notable changes to Claude HUD will be documented in this file.
 ### Added
 - Keep the fork-specific, opt-in MIMO Token Plan snapshot renderer integrated with the current upstream render architecture.
 
+### Security
+- Reject Windows config symlinks and verify the opened file identity before using the bounded file-descriptor read.
+
 ## [0.11.3] - 2026-10-16
 
 ### Fixed
@@ -105,6 +108,15 @@ This release is a rewrite for simplicity, with the same options (except `display
 - Document the HUD scope bar in `CONTRIBUTING.md` (#738).
 - Add the ten missing config options and the absolute-path caveat for `display.externalUsagePath` to `README.zh.md` (#730).
 
+## [0.8.0-fork.1] - 2026-08-19
+
+### Changed
+- Sync upstream v0.8.0 through commit `ef5f1c8` while preserving fork-specific MIMO and compactions behavior.
+- Retain DKalien fork attribution, repository links, and Windows-safe test compatibility.
+
+### Fixed
+- Preserve GitHub branch links when a global `url.*.insteadOf` rule rewrites the transport URL.
+
 ## [0.8.0] - 2026-08-18
 
 ### Added
@@ -133,6 +145,12 @@ This release is a rewrite for simplicity, with the same options (except `display
 ### Security
 - Sanitize, validate, and bound agent labels before terminal output (#704).
 
+## [0.7.0-fork.1] - 2026-08-09
+
+### Changed
+- Sync upstream v0.7.0 through commit `6f065f2` while preserving fork-specific MIMO and compactions behavior.
+- Retain DKalien fork attribution, repository links, Windows compatibility fixes, DIM color 245, and the AGENTS.md to CLAUDE.md link.
+
 ## [0.7.0] - 2026-08-07
 
 ### Added
@@ -157,6 +175,13 @@ This release is a rewrite for simplicity, with the same options (except `display
 
 ### Dependencies
 - Update the development-only `@types/node` package from 26.1.1 to 26.1.2 (#697).
+
+## [0.6.0.1] - 2026-07-22
+
+### Changed
+- Merge upstream v0.6.0 while preserving MIMO Token Plan integration.
+- Adapt `renderMimoLine` to upstream `ProgressLabelOptions` signature.
+- Add MIMO label key to the zh-Hant locale.
 
 ## [0.6.0] - 2026-07-20
 
@@ -245,11 +270,24 @@ This release is a rewrite for simplicity, with the same options (except `display
 ## [0.2.0] - 2026-06-15
 
 ### Added
+- Merge upstream updates while preserving MIMO snapshot functionality.
 - Add opt-in session compaction count display from reliable transcript `compact_boundary` entries (#609).
 - Add `CLAUDE_HUD_DISABLE` as a per-session environment kill switch that exits before stdin, transcript, config, or git work (#610).
+- Skills and MCP activity display elements (`showSkills` / `showMcp`).
+- Balance label display alongside stdin `rate_limits`.
+- Fallback speed estimation via transcript file growth.
+
+### Fixed
+- Windows platform compatibility for tests (HOME/USERPROFILE, file permissions, path handling).
+- Translate “token” as “词元” instead of “令牌” in Simplified Chinese.
+- Stabilize setup and Bash tool targets.
+- Harden Skills and MCP activity rendering.
+- Render external balance with usage windows.
 
 ### Changed
 - Sync `/claude-hud:configure` documentation with current display options, including compaction count, Skills, MCP, prompt cache, memory, cost, and reset-label controls (#613).
+- Update the test suite for Windows platform compatibility.
+- Improve error handling and edge-case coverage.
 
 ### Dependencies
 - Bump `@types/node` from 25.9.2 to 25.9.3 (#614).

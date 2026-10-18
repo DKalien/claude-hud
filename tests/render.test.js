@@ -129,6 +129,24 @@ test('usage pace colours the percent, marks it, and overrides the thresholds', (
   assert.equal(lines(ctx({ usageData: data, config: { display: { usageThreshold: 80 } } }))[1], 'Context █████░░░░░ 45%');
 });
 
+test('expanded compactions are inline on the context line; compact keeps its inline count', () => {
+  const transcript = { compactionCount: 3 };
+  const show = { display: { showCompactions: true } };
+  const expanded = lines(ctx({ transcript, config: show }));
+  assert.equal(expanded.length, 2);
+  assert.match(expanded[1], /^Context .* │ Compactions: 3$/);
+  assert.equal(expanded.filter((line) => line.includes('Compactions: 3')).length, 1);
+
+  const hidden = lines(ctx({ transcript, config: { display: { showCompactions: false } } }));
+  const zero = lines(ctx({ transcript: { compactionCount: 0 }, config: show }));
+  assert.ok(hidden.every((line) => !line.includes('Compactions:')));
+  assert.ok(zero.every((line) => !line.includes('Compactions:')));
+
+  const compactLines = lines(ctx({ transcript, config: compact(show) }));
+  assert.equal(compactLines.length, 1);
+  assert.equal((compactLines[0].match(/Compactions: 3/g) ?? []).length, 1);
+});
+
 const memory = { totalBytes: 16 * 2 ** 30, usedBytes: 8 * 2 ** 30, freeBytes: 8 * 2 ** 30, usedPercent: 50 };
 const withMemory = { display: { showMemoryUsage: true }, elementOrder: ['project', 'context', 'usage', 'memory'] };
 

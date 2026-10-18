@@ -4,6 +4,7 @@ import { t } from '../i18n/index.js';
 import { formatContextValue, formatTokens } from '../utils/format.js';
 import { contextUsage } from './derive.js';
 import { barLabel, type LabelAlign } from './labels.js';
+import { compactionsPart } from './parts.js';
 
 function thresholds(f: Frame) {
   return {
@@ -38,5 +39,7 @@ export function tokenBreakdown(f: Frame): string {
 export function contextLine(f: Frame, align: LabelAlign = {}): string {
   const { bar, value } = contextBarAndValue(f);
   const prefix = barLabel('label.context', f.config?.colors, align);
-  return `${prefix} ${bar ? `${bar} ` : ''}${value}${tokenBreakdown(f)}`;
+  const compactions = compactionsPart(f);
+  const compactionsSeparator = compactions ? label(' │ ', f.config?.colors) : '';
+  return `${prefix} ${bar ? `${bar} ` : ''}${value}${tokenBreakdown(f)}${compactionsSeparator}${compactions ?? ''}`;
 }
