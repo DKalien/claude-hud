@@ -196,6 +196,24 @@ test('project paths keep the configured trailing segments on POSIX and Windows',
   assert.equal(project('\\\\server\\share\\app', 'full'), '//server/share/app');
 });
 
+test('showLaunchDir prefixes the launch directory once the shown path no longer includes it', () => {
+  const project = (cwd, project_dir, pathLevels = 1, showLaunchDir = true) => (
+    lines(ctx({ stdin: { cwd, workspace: { project_dir } }, config: { pathLevels, display: { showLaunchDir } } }))[0].replace('[Opus] │ ', '')
+  );
+  assert.equal(project('/w/repo', '/w/repo'), 'repo');
+  assert.equal(project('/w/repo/src', '/w/repo'), 'repo › src');
+  assert.equal(project('/w/repo/src', '/w/repo', 2), 'repo/src');
+  assert.equal(project('/w/repo/src/lib', '/w/repo', 2), 'repo › src/lib');
+  assert.equal(project('/w/repo/src', '/w/repo', 'full'), '/w/repo/src');
+  assert.equal(project('/w/repox/src', '/w/repo', 2), 'repo › repox/src', 'compares whole segments');
+  assert.equal(project('/tmp', '/w/repo'), 'repo › tmp');
+  assert.equal(project('C:\\w\\repo\\src', 'C:\\w\\repo'), 'repo › src');
+  assert.equal(project('/w/repo/src', '/w/re\x1b[31mpo'), 'repo › src', 'sanitized');
+  assert.equal(project('/w/repo/src', ''), 'src');
+  assert.equal(project('/w/repo/src', '/'), 'src');
+  assert.equal(project('/w/repo/src', '/w/repo', 1, false), 'src');
+});
+
 test('the model badge keeps effort on the model and places the provider by showProvider', () => {
   const badge = (stdin, display = {}, transcript = {}) => lines(ctx({ stdin: { model: { display_name: 'Opus', id: 'opusplan' }, ...stdin }, transcript, config: { display } }))[0].split(' │ ')[0];
   const xhigh = { effort: { level: 'xhigh' } };
@@ -213,6 +231,7 @@ test('the advisor shows a readable model name or the override, capped', () => {
   assert.equal(advisor('claude-custom-x'), 'Advisor: custom-x');
   assert.equal(advisor('claude-opus-4-7', { advisorOverride: 'Reviewer' }), 'Advisor: Reviewer');
   assert.equal(advisor('x'.repeat(80)), `Advisor: ${'x'.repeat(64)}`);
+  assert.equal(advisor('claude-opus-4-7', { advisorOverride: 'A'.repeat(63) + '😀' + 'B' }), `Advisor: ${'A'.repeat(63)}`);
   assert.equal(advisor(undefined), 'my-project');
 });
 
@@ -325,6 +344,17 @@ test('agent model IDs shorten to family and version; others pass through', () =>
   assert.equal(model('claude-'), '◐ t (1s)');
 });
 
+test('agent effort shows next to the model only with showAgentEffort, in effortFormat', () => {
+  const agent = (fields) => ({ id: 'a', type: 'review', status: 'running', startTime: ago(SECOND), effort: 'medium', ...fields });
+  const line = (fields, display) => lines(ctx({ transcript: { agents: [agent(fields)] }, config: { display: { showAgents: true, ...display } } }))[2];
+  assert.equal(line({ model: 'claude-haiku-4-5' }, {}), '◐ review [haiku-4.5] (1s)');
+  assert.equal(line({ model: 'claude-haiku-4-5' }, { showAgentEffort: true }), '◐ review [haiku-4.5 ◔ medium] (1s)');
+  assert.equal(line({}, { showAgentEffort: true, effortFormat: 'symbol' }), '◐ review [◔] (1s)');
+  assert.equal(line({}, { showAgentEffort: true, effortFormat: 'text' }), '◐ review [medium] (1s)');
+  assert.equal(line({ effort: '\x1b[31mHIGH' }, { showAgentEffort: true }), '◐ review [◑ high] (1s)');
+  assert.equal(line({ effort: undefined }, { showAgentEffort: true }), '◐ review (1s)');
+});
+
 test('todos show the task in progress, or completion once every item is done', () => {
   const config = { display: { showTodos: true } };
   const todos = [{ content: 'Fix the bug', status: 'in_progress' }, { content: 'b', status: 'completed' }, { content: 'c', status: 'pending' }];
@@ -333,12 +363,43 @@ test('todos show the task in progress, or completion once every item is done', (
   assert.equal(lines(ctx({ transcript: { todos: [todos[1]] }, config }))[2], '✓ All todos complete (1/1)');
 });
 
+test('todo truncation does not leave half an emoji in the rendered line', () => {
+  const prefix = 'a'.repeat(46);
+  const transcript = { todos: [{ content: `${prefix}😀tail`, status: 'in_progress' }] };
+  const config = { display: { showTodos: true } };
+  assert.equal(lines(ctx({ transcript, config }))[2], `▸ ${prefix}... (0/1)`);
+});
+
+test('agent description truncation keeps joined emoji whole', () => {
+  const prefix = 'a'.repeat(34);
+  const transcript = { agents: [{ id: 'a', type: 'review', description: `${prefix}👩‍💻tail`, status: 'running', startTime: ago(SECOND) }] };
+  const config = { display: { showAgents: true } };
+  assert.equal(lines(ctx({ transcript, config }))[2], `◐ review: ${prefix}... (1s)`);
+});
+
+test('tool target and name truncation keep emoji whole', () => {
+  const tools = [
+    { id: '1', name: 'Edit', status: 'running', target: `${'a'.repeat(16)}😀.ts`, startTime: ago(SECOND) },
+    { id: '2', name: 'mcp__x__abc😀def', status: 'running', startTime: ago(SECOND) },
+  ];
+  const config = { display: { showTools: true, toolNameMaxLength: 5 } };
+  assert.equal(lines(ctx({ transcript: { tools }, config }))[2], `◐ Edit: ${'a'.repeat(16)}... | ◐ abc…`);
+});
+
 test('the environment line names failing MCP servers and respects environmentThreshold', () => {
   const counts = { claudeMdCount: 2, rulesCount: 3, mcpCount: 4, hooksCount: 1 };
   const transcript = { mcpErrors: ['github', 'linear', 'slack', 'notion'] };
   assert.equal(lines(ctx({ ...counts, transcript, config: { display: { showConfigCounts: true } } }))[2], '2 CLAUDE.md | 3 rules | 4 MCPs ⚠ github, linear, slack +1 | 1 hooks');
   assert.equal(lines(ctx({ claudeMdCount: 2, config: { display: { showConfigCounts: true, environmentThreshold: 5 } } })).length, 2);
   assert.equal(lines(ctx({ transcript: { mcpErrors: ['github'] }, config: { display: { showMcp: true } } }))[2], '⚠ github');
+});
+
+test('a failing MCP server name is cut on a grapheme boundary', () => {
+  const name = 'A'.repeat(63) + '😀' + 'B';
+  assert.equal(
+    lines(ctx({ transcript: { mcpErrors: [name] }, config: { display: { showMcp: true } } }))[2],
+    `⚠ ${'A'.repeat(63)}`,
+  );
 });
 
 test('the session time line shows the start date and how long ago the last reply was', () => {
@@ -375,6 +436,20 @@ test('the session token summary keeps its last line until elementOrder places it
   const placed = { display: show, elementOrder: ['sessionTokens', 'project'] };
   assert.equal(lines(ctx({ transcript, config: placed }))[0], tokens);
   assert.deepEqual(lines(ctx({ transcript, config: { ...placed, display: {} } })).length, 1, 'placed but turned off draws nothing');
+});
+
+test('cost keeps its first-line spot until elementOrder places it', () => {
+  const stdin = { cost: { total_cost_usd: 1.2345 } };
+  const show = { showCost: true };
+  assert.match(lines(ctx({ stdin, config: { display: show } }))[0], /│ Cost \$1\.23$/, 'the default order keeps it on the first line');
+  assert.match(lines(ctx({ stdin, config: { display: show, elementOrder: ['project', 'context'] } }))[0], /│ Cost \$1\.23$/, 'so does an older custom order');
+
+  const placed = { display: show, elementOrder: ['project', 'cost', 'context'] };
+  const [first, cost, context] = lines(ctx({ stdin, config: placed }));
+  assert.doesNotMatch(first, /Cost/);
+  assert.equal(cost, 'Cost $1.23');
+  assert.match(context, /^Context/);
+  assert.deepEqual(lines(ctx({ stdin, config: { ...placed, display: {} } })).length, 2, 'placed but turned off draws nothing');
 });
 
 test('wrap width: columns, then maxWidth, and forceMaxWidth overrides columns', () => {

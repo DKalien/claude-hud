@@ -17,7 +17,7 @@ Claude Code runs the command after each message, `/compact`, a mode change, a ra
 
 1. `stdin.ts` reads the payload. It targets Claude Code ≥ 2.1.260 and trusts its fields (`version`, `cost`, `prompt_cache`, `session_name`, `output_style`, `workspace.repo`, `rate_limits`) instead of deriving them.
 2. `config.ts` loads `plugins/claude-hud/config.json` plus the per-directory `claude-hud.json` override. `DEFAULT_CONFIG` is the schema; a rules table validates each key.
-3. `index.ts` gathers only what enabled elements need, in parallel: the transcript (`transcript.ts`), git or jj (`git.ts`, `jj.ts`), the extra command, memory, auth, config counts, the usage and MIMO snapshots, the cost ledger, and speed state. All I/O and state writes happen here.
+3. `index.ts` gathers only what enabled elements need, in parallel: the transcript (`transcript.ts`), git or jj (`git.ts`, `jj.ts`), the extra command, memory, auth, config counts, the usage and MIMO snapshots, the cost ledger, and speed state. I/O is orchestrated here; transcript parsing also reads and writes its incremental cursor in `transcript.ts`.
 4. `render/` turns that into lines without I/O. Each element has one implementation in `parts.ts`, `context.ts`, `usage.ts`, `vcs.ts`, `lines.ts`, and `activity.ts`, plus the fork-specific `mimo.ts`. `expanded.ts` and `compact.ts` only arrange those parts, and `ansi.ts` measures and wraps.
 
 ## Invariants

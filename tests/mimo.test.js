@@ -78,6 +78,17 @@ test('MIMO snapshot parsing feeds its orderable expanded renderer', async () => 
     }, 80, now).map(stripAnsi);
     assert.equal(lines.length, 1);
     assert.match(lines[0], /^MIMO \[Pro\]/);
+
+    const placed = mergeConfig({ elementOrder: ['project', 'cost', 'mimo'], display: { showCost: true, showMimoUsage: true } });
+    const combined = renderLines({
+      stdin: { cost: { total_cost_usd: 1.23 } },
+      transcript: { tools: [], skills: [], mcpServers: [], mcpErrors: [], agents: [], todos: [] },
+      claudeMdCount: 0, rulesCount: 0, mcpCount: 0, hooksCount: 0,
+      costTotals: null, outputSpeed: null, gitStatus: null, usageData: null, memoryUsage: null,
+      mimoSnapshot: snapshot, config: placed, extraLabel: null,
+    }, 80, now).map(stripAnsi).join('\n');
+    assert.equal((combined.match(/Cost \$1\.23/g) ?? []).length, 1);
+    assert.match(combined, /MIMO \[Pro\]/);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

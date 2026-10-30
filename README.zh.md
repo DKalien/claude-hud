@@ -112,7 +112,7 @@ MIMO 用量默认关闭，在展开布局中作为可排序的独立行显示。
 | `pathLevels` | 1-3 \| `full` | 1 | 项目路径显示的目录层级数，或设为 `full` 显示完整绝对路径 |
 | `maxWidth` | number \| `null` | `null` | 可选的回退宽度，仅在终端宽度检测完全失败时使用 |
 | `forceMaxWidth` | boolean | false | 当设置了 `maxWidth` 时始终使用它，即使终端宽度检测返回更小的值 |
-| `elementOrder` | string[] | `["project","addedDirs","context","usage","promptCache","cacheHitRate","memory","environment","mimo","tools","skills","mcp","agents","todos","sessionTime"]` | 展开模式下元素的顺序。省略的条目在展开模式下隐藏。现有配置会保留其显式顺序直到更新。`sessionTokens` 不在默认顺序中：加入后即可像其他元素一样放置 `display.showSessionTokens` 的摘要，例如与 `project` 放进同一个 `display.mergeGroups` 分组。未加入时，它仍单独显示在最后一行。 |
+| `elementOrder` | string[] | `["project","addedDirs","context","usage","promptCache","cacheHitRate","memory","environment","mimo","tools","skills","mcp","agents","todos","sessionTime"]` | 展开模式下元素的顺序。省略的条目在展开模式下隐藏。现有配置会保留其显式顺序直到更新。`sessionTokens` 不在默认顺序中：加入后即可像其他元素一样放置 `display.showSessionTokens` 的摘要，例如与 `project` 放进同一个 `display.mergeGroups` 分组。未加入时，它仍单独显示在最后一行。`cost` 同理：未加入时，费用仍显示在第一行（可用 `projectLineOrder` 调整位置）；加入后，它成为独立元素，例如在 `elementOrder` 中依次放入 `"context","usage","cost"`，并在 `display.mergeGroups` 中使用 `["context","usage","cost"]`，即可把它放在上下文和用量旁边。 |
 | `projectLineOrder` | string[] | `[]` | 可选的首行片段前置顺序，适用于两种布局。可见性仍由 `display.show*` 控制；省略的片段保持渲染器原有顺序。例如 `["project","model"]` 会将项目和 Git 放到模型徽标之前 |
 | `display.mergeGroups` | string[][] | `[["context","usage"]]` | 展开模式下相邻时应共享一行的元素分组。设为 `[]` 可禁用合并行 |
 | `display.rightAlign` | string[] | `[]` | 以合并行中第一个列出的元素作为右对齐后缀的起点，保持 `elementOrder` 并用空格填充间隔。锚点必须位于实际合并渲染的 `display.mergeGroups` 分组中。终端宽度未知、锚点位于首位或空间不足时回退到普通的 ` │ ` 连接。示例：分组为 `["project","context","usage"]` 时设为 `["context"]`，项目/git 保持在左侧，context 与 usage 靠右对齐。 |
@@ -129,6 +129,7 @@ MIMO 用量默认关闭，在展开布局中作为可排序的独立行显示。
 | `jjStatus.showConflicts` | boolean | true | 当 jj 工作副本提交包含未解决冲突时显示 `!conflict` |
 | `display.showModel` | boolean | true | 显示模型名称 `[Opus]` |
 | `display.showProject` | boolean | true | 显示项目路径 |
+| `display.showLaunchDir` | boolean | false | 当显示的路径不再包含启动 Claude Code 时所在的目录时，在项目路径前加上该目录名（如 `my-repo › src`）。`pathLevels: "full"` 时无效 |
 | `display.modelSource` | `stdin` \| `auto` \| `transcript` | `stdin` | 控制模型名称来源。`stdin` 保持默认行为；`auto` 仅在 transcript 返回非 Claude 模型时切换，用于检测代理路由；`transcript` 始终使用 API 响应中的模型。Transcript 模型值会清理终端转义字符并截断为 80 个字符 |
 | `display.modelFormat` | `full` \| `compact` \| `short` | `full` | `compact` 去掉 `(1M context)` 这类上下文窗口后缀；`short` 还会去掉开头的 `Claude ` |
 | `display.modelOverride` | string | `""` | 用这段文字代替模型名称（最多 80 个字符） |
@@ -186,6 +187,7 @@ MIMO 用量默认关闭，在展开布局中作为可排序的独立行显示。
 | `display.showCompactions` | boolean | false | 显示本会话已发生的上下文压缩次数（手动 `/compact` 或自动压缩），从 transcript 的 `compact_boundary` 记录计数，例如 `压缩次数: 2`。第一次压缩前不显示 |
 | `display.showEffortLevel` | boolean | false | 在模型徽章中显示当前推理力度。Ultracode 渲染为 `ultracode(xhigh)`，从会话 transcript 检测，因此能跟踪运行时的 `/effort` 变更 |
 | `display.effortFormat` | `full` \| `symbol` \| `text` | `full` | `showEffortLevel` 开启时的渲染方式：符号加级别文本（`◑ high`）、仅符号（`◑`）、或仅级别文本（`high`）。`symbol` 下 Ultracode 仍保持完整的 `◕ ultracode(xhigh)`，以免丢失标记；没有已知符号的级别回退到级别文本 |
+| `display.showAgentEffort` | boolean | false | 配合 `display.showAgents`，在每个子 Agent 的模型旁显示其推理力度，例如 `◐ code-reviewer [haiku-4.5 ◔ medium]`，格式遵循 `display.effortFormat`。从子 Agent 自己的 transcript 读取，因此要等 Claude Code 记录下该 Agent 的 id（后台 Agent 在启动时，其他 Agent 在结束时）且它已有第一条回复后才会出现 |
 | `display.showClaudeCodeVersion` | boolean | false | 显示当前运行的 Claude Code 版本，如 `CC v2.1.81` |
 | `display.showMemoryUsage` | boolean | false | 在展开布局中显示近似系统 RAM 使用行 |
 | `display.showMimoUsage` | boolean | false | 显示 Fork 特有的 MIMO Token Plan 快照行（展开布局） |
@@ -270,6 +272,8 @@ Context █████░░░░░ 45% │ Usage ██░░░░░░░
 ### 自动刷新
 
 Claude Code 会在每条消息、`/compact`、权限或 vim 模式变化、使用率窗口重置以及 prompt cache 失效之后重新运行状态栏。若想在会话空闲时让倒计时和时长继续走动，在 `~/.claude/settings.json` 的 `statusLine` 中加上 `refreshInterval`（秒）。
+
+**Windows（Git Bash/MSYS2）：** 刷新间隔过短（尤其是同时打开多个 Claude Code 会话时）可能导致 Git Bash 持续报错 `add_item ... failed, errno 1`。建议不设置 `refreshInterval`，或使用 30 秒或更长的间隔（会话较多时应更长）。无需重启即可恢复：关闭所有 Claude Code 会话和 Git Bash 窗口。
 
 ### 临时关闭
 

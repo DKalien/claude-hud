@@ -6,6 +6,7 @@ import { createDebug } from './debug.js';
 import type { Language } from './i18n/types.js';
 import { MAX_TERMINAL_WIDTH } from './utils/terminal.js';
 import { sanitizeDisplayText } from './utils/sanitize.js';
+import { truncateString } from './utils/truncate.js';
 
 const debug = createDebug('config');
 const MAX_CONFIG_FILE_BYTES = 64 * 1024;
@@ -45,6 +46,7 @@ const ELEMENTS = [
   'todos',
   'sessionTime',
   'sessionTokens',
+  'cost',
 ] as const;
 
 // Orderable segments of the first line, shared by the expanded and compact layouts.
@@ -95,8 +97,9 @@ export interface HudColorOverrides {
   barEmpty: string;
 }
 
-// sessionTokens is left out so the tokens summary keeps its place on the last line until it's placed.
-export const DEFAULT_ELEMENT_ORDER: HudElement[] = ELEMENTS.filter(element => element !== 'sessionTokens');
+// sessionTokens and cost are left out so they keep their built-in place (the tokens summary's
+// last line, cost on the first line) until they're placed.
+export const DEFAULT_ELEMENT_ORDER: HudElement[] = ELEMENTS.filter(element => element !== 'sessionTokens' && element !== 'cost');
 export const DEFAULT_MERGE_GROUPS: HudElement[][] = [['context', 'usage']];
 // Empty keeps each renderer's native order until the user moves a segment.
 export const DEFAULT_PROJECT_LINE_ORDER: FirstLineSegment[] = [];
@@ -128,6 +131,7 @@ export interface HudConfig {
   display: {
     showModel: boolean;
     showProject: boolean;
+    showLaunchDir: boolean;
     showAddedDirs: boolean;
     addedDirsLayout: AddedDirsLayout;
     showContextBar: boolean;
@@ -164,6 +168,7 @@ export interface HudConfig {
     showClaudeCodeVersion: boolean;
     showEffortLevel: boolean;
     effortFormat: EffortFormatMode;
+    showAgentEffort: boolean;
     showMemoryUsage: boolean;
     showMimoUsage: boolean;
     mimoSnapshotPath: string;
@@ -231,6 +236,7 @@ export const DEFAULT_CONFIG: HudConfig = {
   display: {
     showModel: true,
     showProject: true,
+    showLaunchDir: false,
     showAddedDirs: true,
     addedDirsLayout: 'inline',
     showContextBar: true,
@@ -265,6 +271,7 @@ export const DEFAULT_CONFIG: HudConfig = {
     showClaudeCodeVersion: false,
     showEffortLevel: false,
     effortFormat: 'full',
+    showAgentEffort: false,
     showMemoryUsage: false,
     showMimoUsage: false,
     mimoSnapshotPath: '',
@@ -341,7 +348,7 @@ const clamp = (min: number, max: number): Rule => (value, fallback) => (
 const floorAtLeastZero: Rule = (value, fallback) => (isNumber(value) ? Math.max(0, Math.floor(value)) : fallback);
 const count: Rule = (value, fallback) => (Number.isInteger(value) && (value as number) >= 0 ? value : fallback);
 const text = (maxLength: number): Rule => (value, fallback) => (
-  typeof value === 'string' ? sanitizeDisplayText(value).slice(0, maxLength) : fallback
+  typeof value === 'string' ? truncateString(sanitizeDisplayText(value), maxLength, '') : fallback
 );
 
 // Keeps known names once each, in order. An empty result falls back only when `nonEmpty`.

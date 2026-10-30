@@ -4,11 +4,21 @@ All notable changes to Claude HUD will be documented in this file.
 
 ## [Unreleased]
 
+## [0.14.0-fork.1] - 2026-10-30
+
+### Changed
+- 同步上游至 `a235aa9`（包含上游 v0.14.0）；保留 fork 的 MIMO、Windows 配置安全检查、Context 行内压缩次数及既有署名和历史记录。
+- transcript 解析使用增量游标，减少长会话重复读取；`parseTranscript` 保持旧的单参数调用兼容。
+
 ### Added
-- Keep the fork-specific, opt-in MIMO Token Plan snapshot renderer integrated with the current upstream render architecture.
+- 新增 `display.showLaunchDir`、`display.showAgentEffort`，并支持在 `elementOrder` 中放置 `cost`。
+- 保持 fork 专有的可选 MIMO Token Plan 快照渲染与当前上游渲染架构兼容。
+
+### Fixed
+- 修正删除任务的进度统计、重复 API 记录引起的活动状态错误，以及文本截断拆分表情或组合字符的问题。
 
 ### Security
-- Reject Windows config symlinks and verify the opened file identity before using the bounded file-descriptor read.
+- 拒绝 Windows 配置符号链接，并在通过文件描述符执行限量读取前验证已打开文件的身份。
 
 ## [0.11.3-fork.1] - 2026-10-18
 

@@ -94,6 +94,7 @@ const stdin = {
   weeklyHigh: merge(typical, { rate_limits: { seven_day: { used_percentage: 85, resets_at: NOW + 86_400 } } }),
   spendLimit: merge(typical, { rate_limits: { spend_limit: { used_percentage: 62.8, resets_at: NOW + 20 * 86_400 } } }),
   addedDirs: merge(typical, { workspace: { added_dirs: ['/work/shared-lib', '/work/docs'] } }),
+  movedCwd: merge(typical, { cwd: '<PROJECT>/src/lib', workspace: { current_dir: '<PROJECT>/src/lib' } }),
   bedrock: merge(apiUserBase(), { model: { id: 'us.anthropic.claude-opus-5-5-v1:0', display_name: 'Opus 5.5' } }),
 };
 
@@ -164,6 +165,10 @@ const options = {
   'mergeGroups=[]': { display: { mergeGroups: [] } },
   'mergeGroups=project+context+usage': { display: { mergeGroups: [['project', 'context', 'usage']] } },
   'rightAlign=context': { display: { mergeGroups: [['project', 'context', 'usage']], rightAlign: ['context'] } },
+  'elementOrder+cost': {
+    elementOrder: ['project', 'context', 'usage', 'cost'],
+    display: { showCost: true, mergeGroups: [['context', 'usage', 'cost']] },
+  },
   'projectLineOrder': {
     projectLineOrder: ['project', 'model', 'cost'],
     display: { showCost: true },
@@ -229,6 +234,12 @@ add('compact/usageCompact', { stdin: typical, config: { lineLayout: 'compact', d
 const ACTIVITY = { display: { showTools: true, showAgents: true, showTodos: true } };
 add('activity/expanded', { stdin: typical, config: ACTIVITY, transcript: 'transcript-activity.jsonl' });
 add('activity/compact', { stdin: typical, config: { ...ACTIVITY, lineLayout: 'compact' }, transcript: 'transcript-activity.jsonl' });
+add('activity/deleted-tasks', { stdin: typical, config: { display: { showTodos: true } }, transcript: 'transcript-deleted-tasks.jsonl' });
+add('activity/deleted-tasks-compact', {
+  stdin: typical,
+  config: { lineLayout: 'compact', display: { showTodos: true } },
+  transcript: 'transcript-deleted-tasks.jsonl',
+});
 add('default/typical@30', { stdin: typical, columns: 30 });
 add('default/cjk-path@40', { stdin: typical, projectName: '我的项目', columns: 40 });
 add('default/cjk-path+zh-Hans@40', { stdin: typical, projectName: '我的项目', config: { language: 'zh-Hans' }, columns: 40 });
@@ -240,6 +251,7 @@ add('option/oneRow+rightAlign=context@120', {
   config: { ...ONE_ROW, display: { ...ONE_ROW.display, rightAlign: ['context'] } },
   columns: 120,
 });
+add('option/showLaunchDir+movedCwd', { stdin: stdin.movedCwd, config: { pathLevels: 2, display: { showLaunchDir: true } } });
 const PUSH_THRESHOLDS = { gitStatus: { showAheadBehind: true, pushWarningThreshold: 1, pushCriticalThreshold: 3 } };
 add('git/ahead+pushThresholds', { stdin: typical, config: PUSH_THRESHOLDS, git: 'ahead' });
 add('compact/ahead+pushThresholds', { stdin: typical, config: { ...PUSH_THRESHOLDS, lineLayout: 'compact' }, git: 'ahead' });
