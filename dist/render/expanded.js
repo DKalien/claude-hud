@@ -10,6 +10,9 @@ import { usageParts } from './usage.js';
 import { gitFilesLine } from './vcs.js';
 import { t } from '../i18n/index.js';
 const ACTIVITY = new Set(['tools', 'skills', 'mcp', 'agents', 'todos']);
+function elementOrder(f) {
+    return f.config?.elementOrder ?? DEFAULT_ELEMENT_ORDER;
+}
 function projectLine(f) {
     const display = f.config?.display;
     const parts = [];
@@ -27,7 +30,9 @@ function projectLine(f) {
     add(versionPart(f), 'version');
     add(extraPart(f), 'extra');
     add(durationPart(f), 'duration');
-    add(costPart(f), 'cost');
+    // Until cost is placed in elementOrder, it stays on the first line.
+    if (!elementOrder(f).includes('cost'))
+        add(costPart(f), 'cost');
     add(speedPart(f), 'speed');
     add(authPart(f), 'auth');
     add(customLinePart(f, 'last'));
@@ -48,6 +53,7 @@ function elementLine(f, element, align = {}) {
         case 'mimo': return renderMimoLine(f, align);
         case 'sessionTime': return sessionTimeLine(f);
         case 'sessionTokens': return f.config?.display?.showSessionTokens ? sessionTokensSummary(f, t('label.tokens')) : null;
+        case 'cost': return costPart(f);
         default: return activityLine(f, element);
     }
 }
@@ -63,7 +69,7 @@ function alignRight(entries, rightAlign, width) {
 }
 /** The expanded layout: one row per element in elementOrder, merging adjacent mergeGroups members. */
 export function expandedLines(f) {
-    const order = f.config?.elementOrder ?? DEFAULT_ELEMENT_ORDER;
+    const order = elementOrder(f);
     const groups = new Map();
     for (const group of f.config?.display?.mergeGroups ?? DEFAULT_MERGE_GROUPS) {
         const members = new Set(group);
